@@ -45,13 +45,33 @@ O projeto adota um modelo arquitetural **Cliente-Servidor descentralizado basead
 
 ---
 
-📂 Estrutura do Projeto Frontend
-lib/
-├── data/
-│   ├── models/         # Modelos de dados (AssinaturaModel, UsuarioModel)
-│   └── repositories/   # Repositórios e gerenciamento de estado
-└── modules/            # Módulos e ecrãs da aplicação
-    ├── alertas/
-    ├── assinaturas/
-    ├── inicial/        # Dashboard e navegação principal
-    └── perfil/
+## 📂 Estrutura do Projeto Frontend
+
+```text
+assinei_e_esqueci/
+├── assets/
+│   └── images/
+├── lib/
+│   ├── data/
+│   │   ├── models/
+│   │   │   ├── assinatura_model.dart
+│   │   │   └── usuario_model.dart
+│   │   └── repositories/
+│   │       ├── assinatura_repository.dart
+│   │       └── usuario_repository.dart
+│   ├── modules/
+│   │   ├── alertas/
+│   │   │   └── alertas_pagina.dart
+│   │   ├── assinaturas/
+│   │   │   ├── assinaturas_pagina.dart
+│   │   │   └── cadastro_assinatura_pagina.dart
+│   │   ├── inicial/
+│   │   │   ├── detalhes_cancelamento_pagina.dart
+│   │   │   ├── detalhes_lembrete_pagina.dart
+│   │   │   └── pagina_inicial.dart
+│   │   └── perfil/
+│   │       └── perfil_pagina.dart
+│   └── main.dart
+├── pubspec.yaml
+└── README.md
+```
