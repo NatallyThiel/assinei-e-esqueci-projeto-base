@@ -21,6 +21,7 @@ O **Assinei & Esqueci** é uma aplicação em Flutter desenvolvida para ajudar o
 - **Linguagem:** [Dart](https://dart.dev/)
 - **Framework:** [Flutter](https://flutter.dev/)
 - **Gerenciamento de Estado:** ValueNotifier / ListenableBuilder
+- **Banco de Dados:** [PostgreSQL](https://www.postgresql.org/) (utilizado no backend para persistência de dados das assinaturas, alertas e usuários)
 
 ---
 
