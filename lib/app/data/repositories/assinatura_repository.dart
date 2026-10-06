@@ -9,7 +9,7 @@ class AssinaturasRepository extends ChangeNotifier {
 
   //  testar no emulador Android, use 'http://10.0.2.2:8080/assinaturas'
   // iOS simulator usar 'http://localhost:8080/assinaturas'
-  final String _baseUrl = 'http://10.0.2.2:8080/assinaturas';
+  final String _baseUrl = 'http://192.168.2.119:8080/assinaturas';
 
   final List<AssinaturaModel> _assinaturas = [];
   bool _carregando = false;
