@@ -118,7 +118,7 @@ class AssinaturasPagina extends StatelessWidget {
                               );
 
                               if (novaAssinatura != null) {
-                                repository.adicionarAssinatura(novaAssinatura);
+                                await repository.adicionarAssinatura(novaAssinatura);
                               }
                             },
                             style: ElevatedButton.styleFrom(

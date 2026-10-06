@@ -50,17 +50,25 @@ class AssinaturasRepository extends ChangeNotifier {
   // metodo para criar uma nova assinatura enviando para a API (PostgreSQL)
   Future<void> adicionarAssinatura(AssinaturaModel assinatura) async {
     try {
+      final dados = assinatura.toJson();
+
+      // O ID é gerado pelo banco de dados
+      dados.remove('id');
+
       final response = await http.post(
         Uri.parse(_baseUrl),
         headers: {'Content-Type': 'application/json; charset=UTF-8'},
-        body: jsonEncode(assinatura.toJson()),
+        body: jsonEncode(dados),
       );
 
       if (response.statusCode == 200 || response.statusCode == 201) {
-        // ta recarregando a lista do servidor para garantir que o ID gerado pelo banco venha certinho
+        debugPrint('CADASTRO OK');
+        debugPrint('Resposta do servidor: ${response.body}');
         await carregarAssinaturas();
       } else {
-        debugPrint('Erro ao salvar assinatura: ${response.statusCode}');
+        debugPrint('ERRO AO SALVAR');
+        debugPrint('Status: ${response.statusCode}');
+        debugPrint('Resposta: ${response.body}');
       }
     } catch (e) {
       debugPrint('Erro de conexão ao salvar: $e');

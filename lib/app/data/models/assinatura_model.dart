@@ -36,10 +36,12 @@ class AssinaturaModel {
 
   factory AssinaturaModel.fromJson(Map<String, dynamic> json) {
     return AssinaturaModel(
-      id: json['id'],
-      nome: json['nome'],
+      id: json['id'].toString(),
+      nome: json['nome'] ?? '',
       valor: (json['valor'] as num).toDouble(),
-      dataVencimento: DateTime.parse(json['dataVencimento']),
+      dataVencimento: json['dataVencimento'] != null
+          ? DateTime.parse(json['dataVencimento'])
+          : DateTime.now(),
       metodoPagamento: json['metodoPagamento'] ?? '',
       plano: json['plano'] ?? 'Plano Padrão',
       icone: json['iconeCodePoint'] != null
