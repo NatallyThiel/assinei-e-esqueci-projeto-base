@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/tema_app.dart';
 import '../home/pagina_inicial.dart';
 import 'registro_pagina.dart';
+import '../../data/repositories/usuario_repository.dart';
 
 class LoginPagina extends StatefulWidget {
   const LoginPagina({super.key});
@@ -21,14 +22,28 @@ class _LoginPaginaState extends State<LoginPagina> {
     if (_chaveFormulario.currentState!.validate()) {
       setState(() => _carregando = true);
 
-      await Future.delayed(const Duration(seconds: 2));
+      final sucesso = await UsuarioRepository.instance.login(
+        email: _controleEmail.text.trim(),
+        senha: _controleSenha.text,
+      );
 
-      if (mounted) {
-        setState(() => _carregando = false);
+      if (!mounted) return;
 
+      setState(() => _carregando = false);
+
+      if (sucesso) {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => const PaginaInicial()),
+          MaterialPageRoute(
+            builder: (context) => const PaginaInicial(),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('E-mail ou senha incorretos.'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

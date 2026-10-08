@@ -61,21 +61,24 @@ class _PerfilPaginaState extends State<PerfilPagina> {
 
   void _salvarPerfil() async {
     if (_chaveFormulario.currentState!.validate()) {
+      debugPrint('>>> CLICOU EM SALVAR PERFIL');
+
       setState(() => _salvando = true);
 
-      await Future.delayed(const Duration(milliseconds: 500));
-
-      // Salva globalmente no repositorio
-      UsuarioRepository.instance.atualizarPerfil(
+      final sucesso = await UsuarioRepository.instance.salvarPerfil(
         nome: _controleNome.text.trim(),
         email: _controleEmail.text.trim(),
         cpf: _controleCpf.text.trim(),
         telefone: _controleTelefone.text.trim(),
       );
 
-      if (mounted) {
-        setState(() => _salvando = false);
+      debugPrint('>>> RETORNO DO SALVAR PERFIL: $sucesso');
 
+      if (!mounted) return;
+
+      setState(() => _salvando = false);
+
+      if (sucesso) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Perfil salvo com sucesso!'),
@@ -83,7 +86,6 @@ class _PerfilPaginaState extends State<PerfilPagina> {
           ),
         );
 
-        // Se veio do fluxo de cadastro (fora do BottomNavigationBar), navega para a Home
         if (Navigator.canPop(context)) {
           Navigator.pushAndRemoveUntil(
             context,
@@ -93,6 +95,13 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                 (route) => false,
           );
         }
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Não foi possível salvar o perfil.'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
   }

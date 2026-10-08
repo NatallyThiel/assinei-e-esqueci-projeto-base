@@ -25,6 +25,8 @@ class _PaginaInicialState extends State<PaginaInicial> {
   void initState() {
     super.initState();
     _indiceAba = widget.abaInicial;
+
+    AssinaturasRepository.instance.carregarAssinaturas();
   }
 
   void _mudarAba(int index) {
