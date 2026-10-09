@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../data/models/assinatura_model.dart';
+import 'editar_assinatura_pagina.dart';
 
 class DetalhesAssinaturaPagina extends StatefulWidget {
   final AssinaturaModel? assinatura;
@@ -110,7 +111,7 @@ class _DetalhesAssinaturaPaginaState extends State<DetalhesAssinaturaPagina> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Topo / Cabeçalho com Gradiente
+
             Container(
               padding: const EdgeInsets.only(top: 50, left: 16, right: 16, bottom: 16),
               decoration: const BoxDecoration(
@@ -189,7 +190,47 @@ class _DetalhesAssinaturaPaginaState extends State<DetalhesAssinaturaPagina> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Card 2: Método de Pagamento
+                      // Botao Editar Dados da Assinatura
+                  // Botão Editar Dados da Assinatura
+                  SizedBox(
+                    width: double.infinity,
+                    height: 42,
+                    child: OutlinedButton(
+                      onPressed: () async {
+                        final assinaturaAtualizada = await Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EditarAssinaturaPagina(
+                              assinatura: item,
+                            ),
+                          ),
+                        );
+
+                        if (assinaturaAtualizada != null) {
+                          debugPrint('Assinatura retornou da edição.');
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: const Color(0xFF1B2A4A),
+                        side: const BorderSide(
+                          color: Color(0xFF1B2A4A),
+                          width: 1.5,
+                        ),
+                        shape: const StadiumBorder(),
+                      ),
+                      child: const Text(
+                        'EDITAR DADOS DA ASSINATURA',
+                        style: TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 14),
+
+
                   _construirCardBase(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,7 +320,7 @@ class _DetalhesAssinaturaPaginaState extends State<DetalhesAssinaturaPagina> {
                   ),
                   const SizedBox(height: 14),
 
-                  // Card 3: Status do Lembrete
+                  // Card 3: status do lembrete
                   _construirCardBase(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,

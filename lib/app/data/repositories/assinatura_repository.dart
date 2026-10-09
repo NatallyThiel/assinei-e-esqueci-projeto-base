@@ -75,6 +75,43 @@ class AssinaturasRepository extends ChangeNotifier {
     }
   }
 
+  // Método para atualizar uma assinatura pelo ID na API
+  Future<bool> atualizarAssinatura(AssinaturaModel assinatura) async {
+    try {
+      final response = await http.put(
+        Uri.parse('$_baseUrl/${assinatura.id}'),
+        headers: {
+          'Content-Type': 'application/json; charset=UTF-8',
+        },
+        body: jsonEncode({
+          'nome': assinatura.nome,
+          'valor': assinatura.valor,
+          'dataVencimento': assinatura.dataVencimento.toIso8601String(),
+          'metodoPagamento': assinatura.metodoPagamento,
+          'plano': assinatura.plano,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        debugPrint('ASSINATURA ATUALIZADA COM SUCESSO');
+        debugPrint('Resposta do servidor: ${response.body}');
+
+        await carregarAssinaturas();
+
+        return true;
+      }
+
+      debugPrint('ERRO AO ATUALIZAR ASSINATURA');
+      debugPrint('Status: ${response.statusCode}');
+      debugPrint('Resposta: ${response.body}');
+
+      return false;
+    } catch (e) {
+      debugPrint('ERRO DE CONEXÃO AO ATUALIZAR ASSINATURA: $e');
+      return false;
+    }
+  }
+
   // metodo para remover uma assinatura pelo ID na API
   Future<void> removerAssinatura(String id) async {
     try {
