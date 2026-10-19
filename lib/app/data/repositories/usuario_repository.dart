@@ -23,7 +23,7 @@ class UsuarioRepository extends ValueNotifier<UsuarioModel> {
 
   static final UsuarioRepository instance = UsuarioRepository._();
 
-  final String _baseUrl = 'http://192.168.2.119:8080/usuarios';
+  final String _baseUrl = 'http://192.168.2.111:8080/usuarios';
 
   Future<bool> cadastrarUsuario({
     required String nome,
