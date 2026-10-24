@@ -19,7 +19,6 @@ class AssinaturasPagina extends StatelessWidget {
           return SingleChildScrollView(
             child: Column(
               children: [
-                // Header / Cabeçalho
                 Container(
                   padding: const EdgeInsets.only(
                     top: 50,

@@ -9,6 +9,9 @@ import 'usuario_repository.dart';
 class AssinaturasRepository extends ChangeNotifier {
   AssinaturasRepository._();
 
+  static final AssinaturasRepository instance =
+      AssinaturasRepository._();
+
   //  testar no emulador Android, use 'http://10.0.2.2:8080/assinaturas'
   // iOS simulator usar 'http://localhost:8080/assinaturas'
   final String _baseUrl = 'https://var-permalink-loved-stranger.trycloudflare.com/assinaturas';
