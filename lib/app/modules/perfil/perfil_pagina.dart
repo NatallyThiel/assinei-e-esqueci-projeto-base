@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import '../../core/theme/tema_app.dart';
 import '../../data/repositories/usuario_repository.dart';
@@ -33,18 +34,27 @@ class _PerfilPaginaState extends State<PerfilPagina> {
   @override
   void initState() {
     super.initState();
+
     final usuarioAtual = UsuarioRepository.instance.value;
 
-    // Prioriza os dados do UsuarioRepository, se estiverem vazios usa os parametros passados no cadastro
     _controleNome = TextEditingController(
-      text: usuarioAtual.nome.isNotEmpty ? usuarioAtual.nome : (widget.nomeInicial ?? ''),
+      text: usuarioAtual.nome.isNotEmpty
+          ? usuarioAtual.nome
+          : (widget.nomeInicial ?? ''),
     );
+
     _controleEmail = TextEditingController(
-      text: usuarioAtual.email.isNotEmpty ? usuarioAtual.email : (widget.emailInicial ?? ''),
+      text: usuarioAtual.email.isNotEmpty
+          ? usuarioAtual.email
+          : (widget.emailInicial ?? ''),
     );
+
     _controleCpf = TextEditingController(
-      text: usuarioAtual.cpf.isNotEmpty ? usuarioAtual.cpf : (widget.cpfInicial ?? ''),
+      text: usuarioAtual.cpf.isNotEmpty
+          ? usuarioAtual.cpf
+          : (widget.cpfInicial ?? ''),
     );
+
     _controleTelefone = TextEditingController(
       text: usuarioAtual.telefone,
     );
@@ -59,50 +69,50 @@ class _PerfilPaginaState extends State<PerfilPagina> {
     super.dispose();
   }
 
-  void _salvarPerfil() async {
-    if (_chaveFormulario.currentState!.validate()) {
-      debugPrint('>>> CLICOU EM SALVAR PERFIL');
+  Future<void> _salvarPerfil() async {
+    if (!_chaveFormulario.currentState!.validate()) return;
 
-      setState(() => _salvando = true);
+    debugPrint('>>> CLICOU EM SALVAR PERFIL');
 
-      final sucesso = await UsuarioRepository.instance.salvarPerfil(
-        nome: _controleNome.text.trim(),
-        email: _controleEmail.text.trim(),
-        cpf: _controleCpf.text.trim(),
-        telefone: _controleTelefone.text.trim(),
+    setState(() => _salvando = true);
+
+    final sucesso = await UsuarioRepository.instance.salvarPerfil(
+      nome: _controleNome.text.trim(),
+      email: _controleEmail.text.trim(),
+      cpf: _controleCpf.text.trim(),
+      telefone: _controleTelefone.text.trim(),
+    );
+
+    debugPrint('>>> RETORNO DO SALVAR PERFIL: $sucesso');
+
+    if (!mounted) return;
+
+    setState(() => _salvando = false);
+
+    if (sucesso) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Perfil salvo com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
       );
 
-      debugPrint('>>> RETORNO DO SALVAR PERFIL: $sucesso');
-
-      if (!mounted) return;
-
-      setState(() => _salvando = false);
-
-      if (sucesso) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Perfil salvo com sucesso!'),
-            backgroundColor: Colors.green,
+      if (Navigator.canPop(context)) {
+        Navigator.pushAndRemoveUntil(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const PaginaInicial(),
           ),
-        );
-
-        if (Navigator.canPop(context)) {
-          Navigator.pushAndRemoveUntil(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const PaginaInicial(),
-            ),
-                (route) => false,
-          );
-        }
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Não foi possível salvar o perfil.'),
-            backgroundColor: Colors.red,
-          ),
+              (route) => false,
         );
       }
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível salvar o perfil.'),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
@@ -126,13 +136,17 @@ class _PerfilPaginaState extends State<PerfilPagina> {
         ),
         child: SafeArea(
           child: SingleChildScrollView(
-            padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16.0),
+            padding: const EdgeInsets.symmetric(
+              horizontal: 24,
+              vertical: 16,
+            ),
             child: Form(
               key: _chaveFormulario,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   const SizedBox(height: 12),
+
                   const Text(
                     'Meu Perfil',
                     textAlign: TextAlign.center,
@@ -142,7 +156,9 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                       color: TemaApp.corBotao,
                     ),
                   ),
+
                   const SizedBox(height: 8),
+
                   const Text(
                     'Complete suas informações para personalizar seu uso.',
                     textAlign: TextAlign.center,
@@ -151,6 +167,7 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                       color: Colors.white12,
                     ),
                   ),
+
                   const SizedBox(height: 28),
 
                   // Avatar / Foto de Perfil
@@ -177,6 +194,7 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                             color: Colors.white,
                           ),
                         ),
+
                         Positioned(
                           bottom: 0,
                           right: 0,
@@ -185,10 +203,16 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                             backgroundColor: Colors.white,
                             child: IconButton(
                               padding: EdgeInsets.zero,
-                              icon: const Icon(Icons.camera_alt, size: 18, color: TemaApp.corBotao),
+                              icon: const Icon(
+                                Icons.camera_alt,
+                                size: 18,
+                                color: TemaApp.corBotao,
+                              ),
                               onPressed: () {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Alterar foto em breve!')),
+                                  const SnackBar(
+                                    content: Text('Alterar foto em breve!'),
+                                  ),
                                 );
                               },
                             ),
@@ -197,6 +221,7 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 32),
 
                   // Campo Nome
@@ -204,8 +229,12 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                     controller: _controleNome,
                     label: 'Nome completo',
                     icon: Icons.person_outline,
-                    validator: (v) => v == null || v.trim().isEmpty ? 'Informe seu nome' : null,
+                    validator: (v) =>
+                    v == null || v.trim().isEmpty
+                        ? 'Informe seu nome'
+                        : null,
                   ),
+
                   const SizedBox(height: 16),
 
                   // Campo E-mail
@@ -214,8 +243,12 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                     label: 'E-mail',
                     icon: Icons.email_outlined,
                     keyboardType: TextInputType.emailAddress,
-                    validator: (v) => v == null || !v.contains('@') ? 'E-mail inválido' : null,
+                    validator: (v) =>
+                    v == null || !v.contains('@')
+                        ? 'E-mail inválido'
+                        : null,
                   ),
+
                   const SizedBox(height: 16),
 
                   // Campo CPF
@@ -225,6 +258,7 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                     icon: Icons.badge_outlined,
                     keyboardType: TextInputType.number,
                   ),
+
                   const SizedBox(height: 16),
 
                   // Campo Telefone / WhatsApp
@@ -234,38 +268,50 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                     icon: Icons.phone_outlined,
                     keyboardType: TextInputType.phone,
                   ),
+
                   const SizedBox(height: 24),
 
-                  // Opções de Preferência
+                  // Opções de preferência
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.white.withAlpha(25),
                       borderRadius: BorderRadius.circular(16),
                       border: Border.all(color: Colors.white30),
                     ),
-                    child: SwitchListTile(
-                      contentPadding: EdgeInsets.zero,
-                      activeColor: Colors.white,
-                      activeTrackColor: TemaApp.corBotao,
-                      title: const Text(
-                        'Receber alertas de vencimento',
-                        style: TextStyle(
-                          color: TemaApp.corBotao,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+                    child: Material(
+                      color: Colors.transparent,
+                      borderRadius: BorderRadius.circular(16),
+                      child: SwitchListTile(
+                        contentPadding: EdgeInsets.zero,
+                        activeColor: Colors.white,
+                        activeTrackColor: TemaApp.corBotao,
+                        title: const Text(
+                          'Receber alertas de vencimento',
+                          style: TextStyle(
+                            color: TemaApp.corBotao,
+                            fontWeight: FontWeight.w600,
+                            fontSize: 14,
+                          ),
                         ),
+                        subtitle: const Text(
+                          'Notificações no app e lembretes',
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 12,
+                          ),
+                        ),
+                        value: _notificacoesAtivas,
+                        onChanged: (val) {
+                          setState(() => _notificacoesAtivas = val);
+                        },
                       ),
-                      subtitle: const Text(
-                        'Notificações no app e lembretes',
-                        style: TextStyle(color: Colors.white70, fontSize: 12),
-                      ),
-                      value: _notificacoesAtivas,
-                      onChanged: (val) {
-                        setState(() => _notificacoesAtivas = val);
-                      },
                     ),
                   ),
+
                   const SizedBox(height: 36),
 
                   // Botão Salvar
@@ -280,7 +326,9 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                         elevation: 4,
                       ),
                       child: _salvando
-                          ? const CircularProgressIndicator(color: Colors.white)
+                          ? const CircularProgressIndicator(
+                        color: Colors.white,
+                      )
                           : const Text(
                         'SALVAR PERFIL',
                         style: TextStyle(
@@ -291,6 +339,7 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 16),
                 ],
               ),
@@ -324,7 +373,10 @@ class _PerfilPaginaState extends State<PerfilPagina> {
           borderSide: BorderSide(color: TemaApp.corBotao),
         ),
         focusedBorder: const UnderlineInputBorder(
-          borderSide: BorderSide(color: TemaApp.corBotao, width: 2),
+          borderSide: BorderSide(
+            color: TemaApp.corBotao,
+            width: 2,
+          ),
         ),
       ),
       validator: validator,

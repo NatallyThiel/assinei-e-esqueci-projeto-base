@@ -1,9 +1,14 @@
+
 import 'package:flutter/material.dart';
 import 'app/core/theme/tema_app.dart';
+import 'app/core/services/notificacao_service.dart';
 import 'app/modules/autenticacao/boas_vindas_pagina.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await NotificacaoService.instance.inicializar();
+
   runApp(const AssineiEEsqueciApp());
 }
 

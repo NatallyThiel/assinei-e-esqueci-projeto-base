@@ -3,195 +3,222 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
 class UsuarioModel {
-  String id;
-  String nome;
-  String email;
-  String cpf;
-  String telefone;
+String id;
+String nome;
+String email;
+String cpf;
+String telefone;
 
-  UsuarioModel({
-    this.id = '',
-    this.nome = '',
-    this.email = '',
-    this.cpf = '',
-    this.telefone = '',
-  });
+UsuarioModel({
+this.id = '',
+this.nome = '',
+this.email = '',
+this.cpf = '',
+this.telefone = '',
+});
 }
 
 class UsuarioRepository extends ValueNotifier<UsuarioModel> {
-  UsuarioRepository._() : super(UsuarioModel());
+UsuarioRepository._() : super(UsuarioModel());
 
-  static final UsuarioRepository instance = UsuarioRepository._();
+static final UsuarioRepository instance = UsuarioRepository._();
 
-  final String _baseUrl = 'http://192.168.2.111:8080/usuarios';
+final String _baseUrl = 'http://10.0.2.2:8080';
+static const Duration _timeout = Duration(seconds: 15);
 
-  Future<bool> cadastrarUsuario({
-    required String nome,
-    required String email,
-    required String cpf,
-    required String telefone,
-    required String senha,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse(_baseUrl),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode({
-          'nome': nome,
-          'email': email,
-          'cpf': cpf,
-          'telefone': telefone,
-          'senha': senha,
-        }),
-      );
+Future<bool> cadastrarUsuario({
+required String nome,
+required String email,
+required String cpf,
+required String telefone,
+required String senha,
+}) async {
+try {
+debugPrint('INICIANDO CADASTRO DE USUÁRIO');
+debugPrint('URL: $_baseUrl/usuarios');
 
-      if (response.statusCode == 200 || response.statusCode == 201) {
-        debugPrint('USUÁRIO CADASTRADO COM SUCESSO');
-        debugPrint('Resposta: ${response.body}');
+final response = await http
+    .post(
+Uri.parse('$_baseUrl/usuarios'),
+headers: {
+'Content-Type': 'application/json; charset=UTF-8',
+},
+body: jsonEncode({
+'nome': nome,
+'email': email,
+'cpf': cpf,
+'telefone': telefone,
+'senha': senha,
+}),
+)
+    .timeout(_timeout);
 
-        final dadosUsuario = jsonDecode(response.body);
+debugPrint('RESPOSTA DO CADASTRO: ${response.statusCode}');
+debugPrint('CORPO DA RESPOSTA: ${response.body}');
 
-        value = UsuarioModel(
-          id: dadosUsuario['id'].toString(),
-          nome: dadosUsuario['nome'] ?? '',
-          email: dadosUsuario['email'] ?? '',
-          cpf: dadosUsuario['cpf'] ?? '',
-          telefone: dadosUsuario['telefone'] ?? '',
-        );
+if (response.statusCode == 200 || response.statusCode == 201) {
+final dadosUsuario =
+jsonDecode(response.body) as Map<String, dynamic>;
 
-        notifyListeners();
+value = UsuarioModel(
+id: dadosUsuario['id']?.toString() ?? '',
+nome: dadosUsuario['nome'] ?? '',
+email: dadosUsuario['email'] ?? '',
+cpf: dadosUsuario['cpf'] ?? '',
+telefone: dadosUsuario['telefone'] ?? '',
+);
 
-        return true;
-      }
+notifyListeners();
 
-      debugPrint('ERRO AO CADASTRAR USUÁRIO');
-      debugPrint('Status: ${response.statusCode}');
-      debugPrint('Resposta: ${response.body}');
+debugPrint('USUÁRIO CADASTRADO COM SUCESSO');
+return true;
+}
 
-      return false;
-    } catch (e) {
-      debugPrint('ERRO DE CONEXÃO AO CADASTRAR USUÁRIO: $e');
-      return false;
-    }
-  }
+debugPrint('ERRO AO CADASTRAR USUÁRIO');
+return false;
+} catch (e) {
+debugPrint('ERRO AO CADASTRAR USUÁRIO: $e');
+return false;
+}
+}
 
-  Future<bool> login({
-    required String email,
-    required String senha,
-  }) async {
-    try {
-      final response = await http.post(
-        Uri.parse('$_baseUrl/login'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode({
-          'email': email,
-          'senha': senha,
-        }),
-      );
+Future<bool> login({
+required String email,
+required String senha,
+}) async {
+try {
+final url = Uri.parse('$_baseUrl/usuarios/login');
 
-      if (response.statusCode == 200) {
-        final dadosUsuario = jsonDecode(response.body);
+debugPrint('INICIANDO LOGIN');
+debugPrint('URL: $url');
+debugPrint('Enviando requisição para o backend...');
 
-        value = UsuarioModel(
-          id: dadosUsuario['id'].toString(),
-          nome: dadosUsuario['nome'] ?? '',
-          email: dadosUsuario['email'] ?? '',
-          cpf: dadosUsuario['cpf'] ?? '',
-          telefone: dadosUsuario['telefone'] ?? '',
-        );
+final response = await http
+    .post(
+url,
+headers: {
+'Content-Type': 'application/json; charset=UTF-8',
+},
+body: jsonEncode({
+'email': email,
+'senha': senha,
+}),
+)
+    .timeout(_timeout);
 
-        notifyListeners();
+debugPrint('RESPOSTA DO LOGIN: ${response.statusCode}');
+debugPrint('CORPO DA RESPOSTA: ${response.body}');
 
-        debugPrint('LOGIN REALIZADO COM SUCESSO');
-        debugPrint('Usuário: ${dadosUsuario['nome']}');
-        debugPrint('ID do usuário: ${dadosUsuario['id']}');
+if (response.statusCode == 200) {
+final dadosUsuario =
+jsonDecode(response.body) as Map<String, dynamic>;
 
-        return true;
-      }
+value = UsuarioModel(
+id: dadosUsuario['id']?.toString() ?? '',
+nome: dadosUsuario['nome'] ?? '',
+email: dadosUsuario['email'] ?? '',
+cpf: dadosUsuario['cpf'] ?? '',
+telefone: dadosUsuario['telefone'] ?? '',
+);
 
-      debugPrint('ERRO AO FAZER LOGIN');
-      debugPrint('Status: ${response.statusCode}');
-      debugPrint('Resposta: ${response.body}');
+notifyListeners();
 
-      return false;
-    } catch (e) {
-      debugPrint('ERRO DE CONEXÃO AO FAZER LOGIN: $e');
-      return false;
-    }
-  }
+debugPrint('LOGIN REALIZADO COM SUCESSO');
+debugPrint('Usuário: ${value.nome}');
+debugPrint('ID do usuário: ${value.id}');
 
-  Future<bool> salvarPerfil({
-    required String nome,
-    required String email,
-    required String cpf,
-    required String telefone,
-  }) async {
-    try {
-      if (value.id.isEmpty) {
-        debugPrint('ERRO: usuário não possui ID.');
-        return false;
-      }
+return true;
+}
 
-      final response = await http.put(
-        Uri.parse('$_baseUrl/${value.id}'),
-        headers: {
-          'Content-Type': 'application/json; charset=UTF-8',
-        },
-        body: jsonEncode({
-          'nome': nome,
-          'email': email,
-          'cpf': cpf,
-          'telefone': telefone,
-        }),
-      );
+debugPrint('ERRO AO FAZER LOGIN');
+debugPrint('Status: ${response.statusCode}');
+debugPrint('Resposta: ${response.body}');
 
-      if (response.statusCode == 200) {
-        final dadosUsuario = jsonDecode(response.body);
+return false;
+} catch (e) {
+debugPrint('ERRO DE CONEXÃO AO FAZER LOGIN: $e');
+return false;
+}
+}
 
-        value = UsuarioModel(
-          id: dadosUsuario['id'].toString(),
-          nome: dadosUsuario['nome'] ?? '',
-          email: dadosUsuario['email'] ?? '',
-          cpf: dadosUsuario['cpf'] ?? '',
-          telefone: dadosUsuario['telefone'] ?? '',
-        );
+Future<bool> salvarPerfil({
+required String nome,
+required String email,
+required String cpf,
+required String telefone,
+}) async {
+try {
+if (value.id.isEmpty) {
+debugPrint('ERRO: usuário não possui ID.');
+return false;
+}
 
-        notifyListeners();
+final url = Uri.parse('$_baseUrl/usuarios/${value.id}');
 
-        debugPrint('PERFIL ATUALIZADO COM SUCESSO');
+debugPrint('INICIANDO ATUALIZAÇÃO DO PERFIL');
+debugPrint('URL: $url');
 
-        return true;
-      }
+final response = await http
+    .put(
+url,
+headers: {
+'Content-Type': 'application/json; charset=UTF-8',
+},
+body: jsonEncode({
+'nome': nome,
+'email': email,
+'cpf': cpf,
+'telefone': telefone,
+}),
+)
+    .timeout(_timeout);
 
-      debugPrint('ERRO AO ATUALIZAR PERFIL');
-      debugPrint('Status: ${response.statusCode}');
-      debugPrint('Resposta: ${response.body}');
+debugPrint('RESPOSTA DA ATUALIZAÇÃO: ${response.statusCode}');
+debugPrint('CORPO DA RESPOSTA: ${response.body}');
 
-      return false;
-    } catch (e) {
-      debugPrint('ERRO DE CONEXÃO AO ATUALIZAR PERFIL: $e');
-      return false;
-    }
-  }
+if (response.statusCode == 200) {
+final dadosUsuario =
+jsonDecode(response.body) as Map<String, dynamic>;
 
-  void atualizarPerfil({
-    required String nome,
-    required String email,
-    String cpf = '',
-    String telefone = '',
-  }) {
-    value = UsuarioModel(
-      id: value.id,
-      nome: nome,
-      email: email,
-      cpf: cpf,
-      telefone: telefone,
-    );
+value = UsuarioModel(
+id: dadosUsuario['id']?.toString() ?? '',
+nome: dadosUsuario['nome'] ?? '',
+email: dadosUsuario['email'] ?? '',
+cpf: dadosUsuario['cpf'] ?? '',
+telefone: dadosUsuario['telefone'] ?? '',
+);
 
-    notifyListeners();
-  }
+notifyListeners();
+
+debugPrint('PERFIL ATUALIZADO COM SUCESSO');
+return true;
+}
+
+debugPrint('ERRO AO ATUALIZAR PERFIL');
+debugPrint('Status: ${response.statusCode}');
+debugPrint('Resposta: ${response.body}');
+
+return false;
+} catch (e) {
+debugPrint('ERRO AO ATUALIZAR PERFIL: $e');
+return false;
+}
+}
+
+void atualizarPerfil({
+required String nome,
+required String email,
+String cpf = '',
+String telefone = '',
+}) {
+value = UsuarioModel(
+id: value.id,
+nome: nome,
+email: email,
+cpf: cpf,
+telefone: telefone,
+);
+
+notifyListeners();
+}
 }

@@ -1,22 +1,77 @@
+
 import 'package:flutter/material.dart';
 import '../../core/theme/tema_app.dart';
+import '../../core/services/notificacao_service.dart';
 import 'login_pagina.dart';
 
-class BoasVindasPagina extends StatelessWidget {
+class BoasVindasPagina extends StatefulWidget {
   const BoasVindasPagina({super.key});
 
-  void _irParaLogin(BuildContext context) {
+  @override
+  State<BoasVindasPagina> createState() => _BoasVindasPaginaState();
+}
+
+class _BoasVindasPaginaState extends State<BoasVindasPagina> {
+  bool _testandoNotificacao = false;
+
+  void _irParaLogin() {
     Navigator.pushReplacement(
       context,
       MaterialPageRoute(builder: (context) => const LoginPagina()),
     );
   }
 
+  Future<void> _testarNotificacao() async {
+    if (_testandoNotificacao) return;
+
+    setState(() => _testandoNotificacao = true);
+
+    try {
+      await NotificacaoService.instance.inicializar();
+
+      final permitida =
+      await NotificacaoService.instance.solicitarPermissao();
+
+      if (!mounted) return;
+
+      if (!permitida) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Permita as notificações nas configurações do Android.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      await NotificacaoService.instance.mostrarNotificacaoDeTeste();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Notificação enviada! Confira o emulador.'),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao testar notificação: $e')),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _testandoNotificacao = false);
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       body: GestureDetector(
-        onTap: () => _irParaLogin(context),
+        onTap: _irParaLogin,
         behavior: HitTestBehavior.opaque,
         child: Container(
           width: double.infinity,
@@ -38,7 +93,6 @@ class BoasVindasPagina extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 const SizedBox(height: 40),
-
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 32.0),
                   child: Image.asset(
@@ -47,7 +101,6 @@ class BoasVindasPagina extends StatelessWidget {
                     fit: BoxFit.contain,
                   ),
                 ),
-
                 const Padding(
                   padding: EdgeInsets.only(bottom: 48.0),
                   child: Text(

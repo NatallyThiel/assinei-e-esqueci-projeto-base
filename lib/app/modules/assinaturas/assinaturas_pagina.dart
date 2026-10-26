@@ -1,3 +1,4 @@
+
 import 'package:flutter/material.dart';
 import '../../data/models/assinatura_model.dart';
 import '../../data/repositories/assinatura_repository.dart';
@@ -6,6 +7,12 @@ import 'detalhes_assinatura_pagina.dart';
 
 class AssinaturasPagina extends StatelessWidget {
   const AssinaturasPagina({super.key});
+
+  String _dataFormatada(DateTime data) {
+    return '${data.day.toString().padLeft(2, '0')}/'
+        '${data.month.toString().padLeft(2, '0')}/'
+        '${data.year}';
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -16,10 +23,22 @@ class AssinaturasPagina extends StatelessWidget {
       body: ListenableBuilder(
         listenable: repository,
         builder: (context, child) {
+          final assinaturas = repository.assinaturas;
+
+          final proximoVencimento = assinaturas.isEmpty
+              ? null
+              : assinaturas
+              .map((a) => a.dataVencimento)
+              .reduce((a, b) => a.isBefore(b) ? a : b);
+
+          final totalMensal = repository.totalGastoMensal
+              .toStringAsFixed(2)
+              .replaceAll('.', ',');
+
           return SingleChildScrollView(
             child: Column(
               children: [
-                // Header / Cabeçalho
+                // Cabeçalho
                 Container(
                   padding: const EdgeInsets.only(
                     top: 50,
@@ -86,23 +105,129 @@ class AssinaturasPagina extends StatelessWidget {
                 ),
 
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 20.0),
+                  padding: const EdgeInsets.symmetric(horizontal: 20),
                   child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
+                      if (!repository.carregando) ...[
+                        const SizedBox(height: 8),
+
+                        // US02 — Painel Consolidado de Gastos
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFC8CEDC),
+                            borderRadius: BorderRadius.circular(16),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text(
+                                'RESUMO DOS GASTOS',
+                                style: TextStyle(
+                                  color: Color(0xFF1B2A4A),
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 0.6,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const Text(
+                                'Total mensal estimado',
+                                style: TextStyle(
+                                  color: Color(0xFF1B2A4A),
+                                  fontSize: 12,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'R\$ $totalMensal',
+                                style: const TextStyle(
+                                  color: Color(0xFF1B2A4A),
+                                  fontSize: 27,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 12),
+                              const Divider(
+                                color: Color(0xFF9BA9BE),
+                              ),
+                              Row(
+                                children: [
+                                  const Icon(
+                                    Icons.subscriptions_outlined,
+                                    color: Color(0xFF1B2A4A),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      '${assinaturas.length} assinatura(s) cadastrada(s)',
+                                      style: const TextStyle(
+                                        color: Color(0xFF1B2A4A),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Icon(
+                                    Icons.event_outlined,
+                                    color: Color(0xFF1B2A4A),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Expanded(
+                                    child: Text(
+                                      proximoVencimento == null
+                                          ? 'Nenhum vencimento cadastrado'
+                                          : 'Próximo vencimento: ${_dataFormatada(proximoVencimento)}',
+                                      style: const TextStyle(
+                                        color: Color(0xFF1B2A4A),
+                                        fontSize: 12,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                      ],
+
                       if (repository.carregando)
                         const Padding(
-                          padding: EdgeInsets.all(32.0),
-                          child: CircularProgressIndicator(
-                            color: Color(0xFF1B2A4A),
+                          padding: EdgeInsets.all(32),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: Color(0xFF1B2A4A),
+                            ),
                           ),
                         )
                       else ...[
-                        ...repository.assinaturas.map(
+                        if (assinaturas.isEmpty)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 20),
+                            child: Text(
+                              'Você ainda não possui assinaturas cadastradas.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                color: Color(0xFF1B2A4A),
+                                fontSize: 13,
+                              ),
+                            ),
+                          ),
+
+                        ...assinaturas.map(
                               (item) => _cardAssinatura(context, item),
                         ),
+
                         const SizedBox(height: 10),
 
-                        // Botão Adicionar
+                        // Botão para adicionar assinatura
                         SizedBox(
                           width: double.infinity,
                           height: 45,
@@ -118,7 +243,9 @@ class AssinaturasPagina extends StatelessWidget {
                               );
 
                               if (novaAssinatura != null) {
-                                await repository.adicionarAssinatura(novaAssinatura);
+                                // O formulário já salva a assinatura no backend.
+                                // Aqui apenas recarregamos a lista para evitar duplicar o POST.
+                                await repository.carregarAssinaturas();
                               }
                             },
                             style: ElevatedButton.styleFrom(
@@ -139,6 +266,7 @@ class AssinaturasPagina extends StatelessWidget {
                           ),
                         ),
                       ],
+
                       const SizedBox(height: 24),
                     ],
                   ),
@@ -151,9 +279,11 @@ class AssinaturasPagina extends StatelessWidget {
     );
   }
 
-  Widget _cardAssinatura(BuildContext context, AssinaturaModel item) {
-    final dataStr =
-        "${item.dataVencimento.day.toString().padLeft(2, '0')}/${item.dataVencimento.month.toString().padLeft(2, '0')}/${item.dataVencimento.year}";
+  Widget _cardAssinatura(
+      BuildContext context,
+      AssinaturaModel item,
+      ) {
+    final dataStr = _dataFormatada(item.dataVencimento);
     final valorStr = item.valor.toStringAsFixed(2).replaceAll('.', ',');
 
     return Container(
@@ -169,12 +299,14 @@ class AssinaturasPagina extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Text(
-                item.nome.toUpperCase(),
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
-                  color: Color(0xFF1B2A4A),
+              Expanded(
+                child: Text(
+                  item.nome.toUpperCase(),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                    color: Color(0xFF1B2A4A),
+                  ),
                 ),
               ),
               GestureDetector(
@@ -189,7 +321,8 @@ class AssinaturasPagina extends StatelessWidget {
                   );
 
                   if (foiExcluido == true) {
-                    AssinaturasRepository.instance.removerAssinatura(item.id);
+                    await AssinaturasRepository.instance
+                        .removerAssinatura(item.id);
                   }
                 },
                 child: const Text(
@@ -214,7 +347,11 @@ class AssinaturasPagina extends StatelessWidget {
                   color: Colors.black,
                   borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(item.icone, color: item.corIcone, size: 28),
+                child: Icon(
+                  item.icone,
+                  color: item.corIcone,
+                  size: 28,
+                ),
               ),
               const SizedBox(width: 12),
               Expanded(

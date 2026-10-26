@@ -1,5 +1,6 @@
+
 package com.assineiesqueci.assinei_e_esqueci
 
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+class MainActivity : FlutterFragmentActivity()

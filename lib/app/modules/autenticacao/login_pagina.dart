@@ -1,8 +1,13 @@
+
 import 'package:flutter/material.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+
 import '../../core/theme/tema_app.dart';
+import '../../core/services/notificacao_service.dart';
+import '../../data/repositories/usuario_repository.dart';
+import '../../data/services/biometria_service.dart';
 import '../home/pagina_inicial.dart';
 import 'registro_pagina.dart';
-import '../../data/repositories/usuario_repository.dart';
 
 class LoginPagina extends StatefulWidget {
   const LoginPagina({super.key});
@@ -15,30 +20,81 @@ class _LoginPaginaState extends State<LoginPagina> {
   final _chaveFormulario = GlobalKey<FormState>();
   final _controleEmail = TextEditingController();
   final _controleSenha = TextEditingController();
+
+  final _biometria = BiometriaService();
+  final _armazenamento = const FlutterSecureStorage();
+
   bool _senhaVisivel = false;
   bool _carregando = false;
+  bool _biometriaDisponivel = false;
+  bool _biometriaAtivada = false;
 
-  void _entrar() async {
-    if (_chaveFormulario.currentState!.validate()) {
-      setState(() => _carregando = true);
+  static const _chaveBiometriaAtivada = 'biometria_ativada';
+  static const _chaveEmail = 'email_biometria';
+
+  @override
+  void initState() {
+    super.initState();
+    _verificarBiometria();
+  }
+
+  Future<void> _verificarBiometria() async {
+    final disponivel = await _biometria.biometriaDisponivel();
+
+    final ativada =
+        await _armazenamento.read(key: _chaveBiometriaAtivada) == 'true';
+
+    debugPrint('BIOMETRIA DISPONÍVEL: $disponivel');
+    debugPrint('BIOMETRIA ATIVADA: $ativada');
+
+    if (!mounted) return;
+
+    setState(() {
+      _biometriaDisponivel = disponivel;
+      _biometriaAtivada = disponivel && ativada;
+    });
+  }
+
+  Future<void> _entrar() async {
+    if (!_chaveFormulario.currentState!.validate()) return;
+
+    setState(() => _carregando = true);
+
+    try {
+      final email = _controleEmail.text.trim();
 
       final sucesso = await UsuarioRepository.instance.login(
-        email: _controleEmail.text.trim(),
+        email: email,
         senha: _controleSenha.text,
       );
 
       if (!mounted) return;
 
-      setState(() => _carregando = false);
-
       if (sucesso) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const PaginaInicial(),
-          ),
-        );
+        debugPrint('LOGIN REALIZADO COM SUCESSO');
+
+        await _oferecerBiometria(email);
+        if (!mounted) return;
+
+        // NOTIFICAÇÃO IMEDIATA PARA A GRAVAÇÃO DA DEMONSTRAÇÃO.
+        try {
+          await NotificacaoService.instance.inicializar();
+          await NotificacaoService.instance.solicitarPermissao();
+          await NotificacaoService.instance.mostrarNotificacaoDeTeste();
+
+          debugPrint('Notificação imediata executada!');
+        } catch (e, stackTrace) {
+          debugPrint('Erro ao exibir notificação: $e');
+          debugPrintStack(stackTrace: stackTrace);
+        }
+
+        if (!mounted) return;
+
+        setState(() => _carregando = false);
+        _abrirInicio();
       } else {
+        setState(() => _carregando = false);
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('E-mail ou senha incorretos.'),
@@ -46,13 +102,120 @@ class _LoginPaginaState extends State<LoginPagina> {
           ),
         );
       }
+    } catch (e) {
+      if (!mounted) return;
+
+      setState(() => _carregando = false);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erro ao entrar: $e')),
+      );
     }
+  }
+
+  Future<void> _oferecerBiometria(String email) async {
+    final jaAtivada =
+        await _armazenamento.read(key: _chaveBiometriaAtivada) == 'true';
+
+    if (jaAtivada || !_biometriaDisponivel || !mounted) return;
+
+    final ativar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ativar biometria?'),
+        content: const Text(
+          'Deseja usar a impressão digital neste dispositivo '
+              'para confirmar sua identidade em acessos futuros?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Agora não'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ativar'),
+          ),
+        ],
+      ),
+    );
+
+    if (ativar != true) return;
+
+    final autenticado = await _biometria.autenticar();
+    if (!mounted) return;
+
+    if (autenticado) {
+      await _armazenamento.write(
+        key: _chaveEmail,
+        value: email,
+      );
+
+      await _armazenamento.write(
+        key: _chaveBiometriaAtivada,
+        value: 'true',
+      );
+
+      setState(() => _biometriaAtivada = true);
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Biometria ativada neste dispositivo.'),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Não foi possível confirmar a biometria.'),
+        ),
+      );
+    }
+  }
+
+  Future<void> _entrarComBiometria() async {
+    if (_carregando) return;
+
+    setState(() => _carregando = true);
+
+    try {
+      final autenticado = await _biometria.autenticar();
+      if (!mounted) return;
+
+      if (!autenticado) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Autenticação biométrica cancelada ou não reconhecida.',
+            ),
+          ),
+        );
+        return;
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Biometria confirmada. Entre com e-mail e senha para validar '
+                'sua conta nesta versão.',
+          ),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
+
+  void _abrirInicio() {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (_) => const PaginaInicial()),
+    );
   }
 
   void _abrirTelaRegistro() {
     Navigator.push(
       context,
-      MaterialPageRoute(builder: (context) => const RegistroPagina()),
+      MaterialPageRoute(builder: (_) => const RegistroPagina()),
     );
   }
 
@@ -84,7 +247,10 @@ class _LoginPaginaState extends State<LoginPagina> {
         child: SafeArea(
           child: Center(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 32.0, vertical: 16.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 32,
+                vertical: 16,
+              ),
               child: Form(
                 key: _chaveFormulario,
                 child: Column(
@@ -96,7 +262,6 @@ class _LoginPaginaState extends State<LoginPagina> {
                       fit: BoxFit.contain,
                     ),
                     const SizedBox(height: 32),
-
                     const Text(
                       'Login',
                       style: TextStyle(
@@ -106,7 +271,6 @@ class _LoginPaginaState extends State<LoginPagina> {
                       ),
                     ),
                     const SizedBox(height: 24),
-
                     TextFormField(
                       controller: _controleEmail,
                       keyboardType: TextInputType.emailAddress,
@@ -114,8 +278,10 @@ class _LoginPaginaState extends State<LoginPagina> {
                       decoration: const InputDecoration(
                         hintText: 'Seu email',
                         hintStyle: TextStyle(color: Color(0xFF64748B)),
-                        prefixIcon: Icon(Icons.mark_email_read_outlined, color: TemaApp.corBotao),
-                        filled: false,
+                        prefixIcon: Icon(
+                          Icons.mark_email_read_outlined,
+                          color: TemaApp.corBotao,
+                        ),
                         border: UnderlineInputBorder(
                           borderSide: BorderSide(color: TemaApp.corBotao),
                         ),
@@ -123,7 +289,10 @@ class _LoginPaginaState extends State<LoginPagina> {
                           borderSide: BorderSide(color: TemaApp.corBotao),
                         ),
                         focusedBorder: UnderlineInputBorder(
-                          borderSide: BorderSide(color: TemaApp.corBotao, width: 2),
+                          borderSide: BorderSide(
+                            color: TemaApp.corBotao,
+                            width: 2,
+                          ),
                         ),
                       ),
                       validator: (valor) {
@@ -137,7 +306,6 @@ class _LoginPaginaState extends State<LoginPagina> {
                       },
                     ),
                     const SizedBox(height: 20),
-
                     TextFormField(
                       controller: _controleSenha,
                       obscureText: !_senhaVisivel,
@@ -145,10 +313,15 @@ class _LoginPaginaState extends State<LoginPagina> {
                       decoration: InputDecoration(
                         hintText: 'Sua senha',
                         hintStyle: const TextStyle(color: Color(0xFF64748B)),
-                        prefixIcon: const Icon(Icons.lock_outline, color: TemaApp.corBotao),
+                        prefixIcon: const Icon(
+                          Icons.lock_outline,
+                          color: TemaApp.corBotao,
+                        ),
                         suffixIcon: IconButton(
                           icon: Icon(
-                            _senhaVisivel ? Icons.visibility_off_outlined : Icons.visibility_outlined,
+                            _senhaVisivel
+                                ? Icons.visibility_off_outlined
+                                : Icons.visibility_outlined,
                             color: TemaApp.corBotao,
                           ),
                           onPressed: () {
@@ -157,7 +330,6 @@ class _LoginPaginaState extends State<LoginPagina> {
                             });
                           },
                         ),
-                        filled: false,
                         border: const UnderlineInputBorder(
                           borderSide: BorderSide(color: TemaApp.corBotao),
                         ),
@@ -165,7 +337,10 @@ class _LoginPaginaState extends State<LoginPagina> {
                           borderSide: BorderSide(color: TemaApp.corBotao),
                         ),
                         focusedBorder: const UnderlineInputBorder(
-                          borderSide: BorderSide(color: TemaApp.corBotao, width: 2),
+                          borderSide: BorderSide(
+                            color: TemaApp.corBotao,
+                            width: 2,
+                          ),
                         ),
                       ),
                       validator: (valor) {
@@ -176,7 +351,6 @@ class _LoginPaginaState extends State<LoginPagina> {
                       },
                     ),
                     const SizedBox(height: 32),
-
                     SizedBox(
                       height: 52,
                       child: ElevatedButton(
@@ -188,7 +362,9 @@ class _LoginPaginaState extends State<LoginPagina> {
                           elevation: 4,
                         ),
                         child: _carregando
-                            ? const CircularProgressIndicator(color: Colors.white)
+                            ? const CircularProgressIndicator(
+                          color: Colors.white,
+                        )
                             : const Text(
                           'Entrar',
                           style: TextStyle(
@@ -198,8 +374,25 @@ class _LoginPaginaState extends State<LoginPagina> {
                         ),
                       ),
                     ),
+                    if (_biometriaDisponivel) ...[
+                      const SizedBox(height: 14),
+                      OutlinedButton.icon(
+                        onPressed:
+                        _carregando ? null : _entrarComBiometria,
+                        icon: const Icon(Icons.fingerprint),
+                        label: Text(
+                          _biometriaAtivada
+                              ? 'Confirmar com biometria'
+                              : 'Testar biometria',
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: Colors.white,
+                          side: const BorderSide(color: Colors.white70),
+                          minimumSize: const Size.fromHeight(48),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 12),
-
                     TextButton(
                       onPressed: () {},
                       child: const Text(
@@ -211,22 +404,27 @@ class _LoginPaginaState extends State<LoginPagina> {
                       ),
                     ),
                     const SizedBox(height: 16),
-
                     Row(
                       children: const [
-                        Expanded(child: Divider(color: Colors.white54, thickness: 1)),
+                        Expanded(
+                          child: Divider(color: Colors.white54, thickness: 1),
+                        ),
                         Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 12.0),
+                          padding: EdgeInsets.symmetric(horizontal: 12),
                           child: Text(
                             'Ou entre com',
-                            style: TextStyle(color: Colors.white70, fontSize: 14),
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 14,
+                            ),
                           ),
                         ),
-                        Expanded(child: Divider(color: Colors.white54, thickness: 1)),
+                        Expanded(
+                          child: Divider(color: Colors.white54, thickness: 1),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 24),
-
                     Row(
                       children: [
                         Expanded(
@@ -257,13 +455,15 @@ class _LoginPaginaState extends State<LoginPagina> {
                       ],
                     ),
                     const SizedBox(height: 32),
-
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         const Text(
                           'Não tem conta? ',
-                          style: TextStyle(color: Colors.white70, fontSize: 16),
+                          style: TextStyle(
+                            color: Colors.white70,
+                            fontSize: 16,
+                          ),
                         ),
                         GestureDetector(
                           onTap: _abrirTelaRegistro,
@@ -288,7 +488,10 @@ class _LoginPaginaState extends State<LoginPagina> {
     );
   }
 
-  Widget _botaoSocial({required Widget child, required VoidCallback onTap}) {
+  Widget _botaoSocial({
+    required Widget child,
+    required VoidCallback onTap,
+  }) {
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(30),

@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+
 import '../../data/models/assinatura_model.dart';
+import '../../data/repositories/assinatura_repository.dart';
 
 class CadastroAssinaturaPagina extends StatefulWidget {
   const CadastroAssinaturaPagina({super.key});
@@ -9,16 +11,22 @@ class CadastroAssinaturaPagina extends StatefulWidget {
       _CadastroAssinaturaPaginaState();
 }
 
-class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
+class _CadastroAssinaturaPaginaState
+    extends State<CadastroAssinaturaPagina> {
   final _formKey = GlobalKey<FormState>();
 
   final _nomeController = TextEditingController();
   final _planoController = TextEditingController();
   final _valorController = TextEditingController();
+  final _plataformaController = TextEditingController();
 
   DateTime? _dataVencimentoSelecionada;
+
   String _metodoPagamento = 'Cartão de Crédito';
+
   bool _lembreteAtivo = true;
+  bool _testeGratis = false;
+  bool _salvando = false;
 
   final List<String> _metodosPagamento = [
     'Cartão de Crédito',
@@ -32,6 +40,7 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
     _nomeController.dispose();
     _planoController.dispose();
     _valorController.dispose();
+    _plataformaController.dispose();
     super.dispose();
   }
 
@@ -62,35 +71,113 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
     }
   }
 
-  void _salvarAssinatura() {
-    if (_formKey.currentState!.validate()) {
-      if (_dataVencimentoSelecionada == null) {
+  Future<void> _salvarAssinatura() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    if (_dataVencimentoSelecionada == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Por favor, selecione uma data de vencimento.',
+          ),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    final valorTexto = _valorController.text
+        .trim()
+        .replaceAll('.', '')
+        .replaceAll(',', '.');
+
+    final valor = double.tryParse(valorTexto);
+
+    if (valor == null || valor < 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Digite um valor válido.'),
+          backgroundColor: Colors.redAccent,
+        ),
+      );
+      return;
+    }
+
+    setState(() => _salvando = true);
+
+    final novaAssinatura = AssinaturaModel(
+      id: '',
+      nome: _nomeController.text.trim(),
+      valor: valor,
+      dataVencimento: _dataVencimentoSelecionada!,
+      metodoPagamento: _metodoPagamento,
+      plano: _planoController.text.trim().isEmpty
+          ? 'Plano Padrão'
+          : _planoController.text.trim(),
+      plataforma: _plataformaController.text.trim(),
+      testeGratis: _testeGratis,
+    );
+
+    try {
+      await AssinaturasRepository.instance
+          .adicionarAssinatura(novaAssinatura);
+
+      if (!mounted) return;
+
+      await AssinaturasRepository.instance.carregarAssinaturas();
+
+      if (!mounted) return;
+
+      final assinaturas =
+          AssinaturasRepository.instance.assinaturas;
+
+      final encontrada = assinaturas.where(
+            (item) =>
+        item.nome == novaAssinatura.nome &&
+            item.valor == novaAssinatura.valor &&
+            item.dataVencimento.year ==
+                novaAssinatura.dataVencimento.year &&
+            item.dataVencimento.month ==
+                novaAssinatura.dataVencimento.month &&
+            item.dataVencimento.day ==
+                novaAssinatura.dataVencimento.day,
+      );
+
+      if (encontrada.isNotEmpty) {
+        final assinaturaSalva = encontrada.first;
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Por favor, selecione uma data de vencimento.'),
+            content: Text('Assinatura salva no servidor!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        Navigator.pop(context, assinaturaSalva);
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível confirmar o cadastro no servidor. '
+                  'Confira o log do backend e a conexão.',
+            ),
             backgroundColor: Colors.redAccent,
           ),
         );
-        return;
       }
+    } catch (e) {
+      if (!mounted) return;
 
-      final novaAssinatura = AssinaturaModel(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        nome: _nomeController.text.trim(),
-        valor: double.parse(_valorController.text.replaceAll(',', '.')),
-        dataVencimento: _dataVencimentoSelecionada!,
-        metodoPagamento: _metodoPagamento,
-      );
-
-      // Exibe mensagem de sucesso e retorna a nova assinatura para a tela anterior
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Assinatura cadastrada com sucesso!'),
-          backgroundColor: Colors.green,
+        SnackBar(
+          content: Text('Erro ao salvar a assinatura: $e'),
+          backgroundColor: Colors.redAccent,
         ),
       );
-
-      Navigator.pop(context, novaAssinatura);
+    } finally {
+      if (mounted) {
+        setState(() => _salvando = false);
+      }
     }
   }
 
@@ -101,7 +188,6 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
       body: SingleChildScrollView(
         child: Column(
           children: [
-            // Cabeçalho com Gradiente
             Container(
               padding: const EdgeInsets.only(
                 top: 50,
@@ -124,7 +210,8 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
               child: Column(
                 children: [
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment:
+                    MainAxisAlignment.spaceBetween,
                     children: [
                       IconButton(
                         icon: const Icon(
@@ -137,15 +224,17 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                       Image.asset(
                         'assets/images/logo.png',
                         height: 38,
-                        errorBuilder: (context, error, stackTrace) =>
-                        const Text(
-                          'Assinei\n& Esqueci',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1B2A4A),
-                            fontSize: 12,
-                          ),
-                        ),
+                        errorBuilder:
+                            (context, error, stackTrace) {
+                          return const Text(
+                            'Assinei\n& Esqueci',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1B2A4A),
+                              fontSize: 12,
+                            ),
+                          );
+                        },
                       ),
                     ],
                   ),
@@ -164,12 +253,13 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
             ),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 20,
+              ),
               child: Form(
                 key: _formKey,
                 child: Column(
                   children: [
-                    // Card com Formulário
                     Container(
                       padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
@@ -177,7 +267,8 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
+                        crossAxisAlignment:
+                        CrossAxisAlignment.start,
                         children: [
                           const Text(
                             'INFORMAÇÕES DA ASSINATURA',
@@ -187,49 +278,74 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                               color: Color(0xFF1B2A4A),
                             ),
                           ),
+
                           const SizedBox(height: 14),
 
-                          // Nome do Serviço
                           _campoTexto(
                             label: 'Nome do Serviço',
                             hint: 'Ex: Netflix, Spotify, Disney+',
                             controller: _nomeController,
                             validator: (valor) {
-                              if (valor == null || valor.isEmpty) {
+                              if (valor == null ||
+                                  valor.trim().isEmpty) {
                                 return 'Informe o nome do serviço';
                               }
                               return null;
                             },
                           ),
+
                           const SizedBox(height: 12),
 
-                          // Plano
                           _campoTexto(
                             label: 'Plano (Opcional)',
-                            hint: 'Ex: Premium, Individual, Family',
+                            hint: 'Ex: Premium, Individual, Família',
                             controller: _planoController,
                           ),
+
                           const SizedBox(height: 12),
 
-                          // Valor
                           _campoTexto(
                             label: 'Valor Mensal (R\$)',
                             hint: 'Ex: 29,90',
                             controller: _valorController,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            keyboardType:
+                            const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
                             validator: (valor) {
-                              if (valor == null || valor.isEmpty) {
+                              if (valor == null ||
+                                  valor.trim().isEmpty) {
                                 return 'Informe o valor';
                               }
-                              if (double.tryParse(valor.replaceAll(',', '.')) == null) {
+
+                              final normalizado = valor
+                                  .trim()
+                                  .replaceAll('.', '')
+                                  .replaceAll(',', '.');
+
+                              final numero =
+                              double.tryParse(normalizado);
+
+                              if (numero == null || numero < 0) {
                                 return 'Digite um valor válido';
                               }
+
                               return null;
                             },
                           ),
+
                           const SizedBox(height: 12),
 
-                          // Vencimento
+                          _campoTexto(
+                            label:
+                            'Plataforma de contratação (opcional)',
+                            hint:
+                            'Ex: Google Play, App Store, site do serviço',
+                            controller: _plataformaController,
+                          ),
+
+                          const SizedBox(height: 12),
+
                           const Text(
                             'Data do Próximo Vencimento',
                             style: TextStyle(
@@ -238,34 +354,51 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                               color: Color(0xFF1B2A4A),
                             ),
                           ),
+
                           const SizedBox(height: 6),
+
                           InkWell(
-                            onTap: () => _selecionarData(context),
-                            borderRadius: BorderRadius.circular(10),
+                            onTap: () =>
+                                _selecionarData(context),
+                            borderRadius:
+                            BorderRadius.circular(10),
                             child: Container(
-                              padding: const EdgeInsets.symmetric(
+                              padding:
+                              const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 12,
                               ),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius: BorderRadius.circular(10),
-                                border: Border.all(color: Colors.black26),
+                                borderRadius:
+                                BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: Colors.black26,
+                                ),
                               ),
                               child: Row(
                                 mainAxisAlignment:
                                 MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    _dataVencimentoSelecionada == null
+                                    _dataVencimentoSelecionada ==
+                                        null
                                         ? 'Selecionar data'
-                                        : "${_dataVencimentoSelecionada!.day.toString().padLeft(2, '0')}/${_dataVencimentoSelecionada!.month.toString().padLeft(2, '0')}/${_dataVencimentoSelecionada!.year}",
+                                        : '${_dataVencimentoSelecionada!.day.toString().padLeft(2, '0')}/'
+                                        '${_dataVencimentoSelecionada!.month.toString().padLeft(2, '0')}/'
+                                        '${_dataVencimentoSelecionada!.year}',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color: _dataVencimentoSelecionada == null
+                                      color:
+                                      _dataVencimentoSelecionada ==
+                                          null
                                           ? Colors.black38
-                                          : const Color(0xFF1B2A4A),
-                                      fontWeight: _dataVencimentoSelecionada == null
+                                          : const Color(
+                                        0xFF1B2A4A,
+                                      ),
+                                      fontWeight:
+                                      _dataVencimentoSelecionada ==
+                                          null
                                           ? FontWeight.normal
                                           : FontWeight.bold,
                                     ),
@@ -279,9 +412,9 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                               ),
                             ),
                           ),
+
                           const SizedBox(height: 12),
 
-                          // Método de Pagamento
                           const Text(
                             'Método de Pagamento',
                             style: TextStyle(
@@ -290,13 +423,21 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                               color: Color(0xFF1B2A4A),
                             ),
                           ),
+
                           const SizedBox(height: 6),
+
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 12),
+                            padding:
+                            const EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius: BorderRadius.circular(10),
-                              border: Border.all(color: Colors.black26),
+                              borderRadius:
+                              BorderRadius.circular(10),
+                              border: Border.all(
+                                color: Colors.black26,
+                              ),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
@@ -311,12 +452,14 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                                   color: Color(0xFF1B2A4A),
                                   fontWeight: FontWeight.bold,
                                 ),
-                                items: _metodosPagamento.map((metodo) {
-                                  return DropdownMenuItem<String>(
-                                    value: metodo,
-                                    child: Text(metodo),
-                                  );
-                                }).toList(),
+                                items: _metodosPagamento.map(
+                                      (metodo) {
+                                    return DropdownMenuItem<String>(
+                                      value: metodo,
+                                      child: Text(metodo),
+                                    );
+                                  },
+                                ).toList(),
                                 onChanged: (novoValor) {
                                   if (novoValor != null) {
                                     setState(() {
@@ -327,24 +470,27 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                               ),
                             ),
                           ),
+
                           const SizedBox(height: 12),
 
-                          // Switch Lembrete
                           Row(
                             mainAxisAlignment:
                             MainAxisAlignment.spaceBetween,
                             children: [
-                              const Text(
-                                'Ativar Alerta de Lembrete',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Color(0xFF1B2A4A),
+                              const Expanded(
+                                child: Text(
+                                  'Ativar Alerta de Lembrete',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Color(0xFF1B2A4A),
+                                  ),
                                 ),
                               ),
                               Switch(
                                 value: _lembreteAtivo,
-                                activeColor: const Color(0xFF1B2A4A),
+                                activeColor:
+                                const Color(0xFF1B2A4A),
                                 onChanged: (val) {
                                   setState(() {
                                     _lembreteAtivo = val;
@@ -356,21 +502,88 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 12),
+
+                    const Text(
+                      'É um teste grátis?',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: Color(0xFF1B2A4A),
+                      ),
+                    ),
+
+                    const SizedBox(height: 6),
+
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: Colors.black26),
+                      ),
+                      child: DropdownButtonHideUnderline(
+                        child: DropdownButton<bool>(
+                          value: _testeGratis,
+                          isExpanded: true,
+                          icon: const Icon(
+                            Icons.arrow_drop_down,
+                            color: Color(0xFF1B2A4A),
+                          ),
+                          style: const TextStyle(
+                            fontSize: 12,
+                            color: Color(0xFF1B2A4A),
+                            fontWeight: FontWeight.bold,
+                          ),
+                          items: const [
+                            DropdownMenuItem<bool>(
+                              value: false,
+                              child: Text('Não'),
+                            ),
+                            DropdownMenuItem<bool>(
+                              value: true,
+                              child: Text('Sim'),
+                            ),
+                          ],
+                          onChanged: (novoValor) {
+                            if (novoValor != null) {
+                              setState(() {
+                                _testeGratis = novoValor;
+                              });
+                            }
+                          },
+                        ),
+                      ),
+                    ),
+
                     const SizedBox(height: 20),
 
-                    // Botão Cadastrar Assinatura
                     SizedBox(
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _salvarAssinatura,
+                        onPressed: _salvando
+                            ? null
+                            : _salvarAssinatura,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF1B2A4A),
+                          backgroundColor:
+                          const Color(0xFF1B2A4A),
                           foregroundColor: Colors.white,
                           shape: const StadiumBorder(),
                           elevation: 2,
                         ),
-                        child: const Text(
+                        child: _salvando
+                            ? const SizedBox(
+                          width: 22,
+                          height: 22,
+                          child:
+                          CircularProgressIndicator(
+                            color: Colors.white,
+                            strokeWidth: 2,
+                          ),
+                        )
+                            : const Text(
                           'CADASTRAR ASSINATURA',
                           style: TextStyle(
                             fontSize: 13,
@@ -380,6 +593,7 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
                         ),
                       ),
                     ),
+
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -409,29 +623,46 @@ class _CadastroAssinaturaPaginaState extends State<CadastroAssinaturaPagina> {
             color: Color(0xFF1B2A4A),
           ),
         ),
+
         const SizedBox(height: 6),
+
         TextFormField(
           controller: controller,
           keyboardType: keyboardType,
           validator: validator,
-          style: const TextStyle(fontSize: 12, color: Color(0xFF1B2A4A)),
+          style: const TextStyle(
+            fontSize: 12,
+            color: Color(0xFF1B2A4A),
+          ),
           decoration: InputDecoration(
             hintText: hint,
-            hintStyle: const TextStyle(fontSize: 12, color: Colors.black38),
+            hintStyle: const TextStyle(
+              fontSize: 12,
+              color: Colors.black38,
+            ),
             fillColor: Colors.white,
             filled: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            contentPadding:
+            const EdgeInsets.symmetric(
+              horizontal: 12,
+              vertical: 10,
+            ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.black26),
+              borderSide:
+              const BorderSide(color: Colors.black26),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Colors.black26),
+              borderSide:
+              const BorderSide(color: Colors.black26),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFF1B2A4A), width: 1.5),
+              borderSide: const BorderSide(
+                color: Color(0xFF1B2A4A),
+                width: 1.5,
+              ),
             ),
           ),
         ),
