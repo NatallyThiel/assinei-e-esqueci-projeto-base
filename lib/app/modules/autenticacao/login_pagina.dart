@@ -76,7 +76,6 @@ class _LoginPaginaState extends State<LoginPagina> {
         await _oferecerBiometria(email);
         if (!mounted) return;
 
-        // NOTIFICAÇÃO IMEDIATA PARA A GRAVAÇÃO DA DEMONSTRAÇÃO.
         try {
           await NotificacaoService.instance.inicializar();
           await NotificacaoService.instance.solicitarPermissao();
