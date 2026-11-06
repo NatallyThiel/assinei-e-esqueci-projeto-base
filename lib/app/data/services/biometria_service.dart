@@ -4,7 +4,6 @@ import 'package:local_auth/local_auth.dart';
 class BiometriaService {
   final LocalAuthentication _autenticacao = LocalAuthentication();
 
-  /// Verifica se o dispositivo oferece suporte e possui biometria configurada.
   Future<bool> biometriaDisponivel() async {
     try {
       final dispositivoSuportado =
@@ -27,9 +26,6 @@ class BiometriaService {
     }
   }
 
-  /// Solicita confirmação biométrica.
-  /// Retorna true apenas se a autenticação for aprovada.
-  /// Em caso de indisponibilidade, cancelamento ou erro, retorna false.
   Future<bool> autenticar() async {
     try {
       final disponivel = await biometriaDisponivel();
