@@ -1,6 +1,9 @@
 
 import 'package:flutter/material.dart';
+
 import '../../data/models/assinatura_model.dart';
+import '../../data/repositories/assinatura_repository.dart';
+import '../../data/repositories/cartao_repository.dart';
 import 'editar_assinatura_pagina.dart';
 import '../home/detalhes_cancelamento_pagina.dart';
 
@@ -21,9 +24,160 @@ class DetalhesAssinaturaPagina extends StatefulWidget {
 
 class _DetalhesAssinaturaPaginaState
     extends State<DetalhesAssinaturaPagina> {
-  bool notificacaoAtiva = true;
+  final AssinaturasRepository _repository =
+      AssinaturasRepository.instance;
 
-  Future<void> _abrirCancelamento(AssinaturaModel item) async {
+  late AssinaturaModel? _assinaturaAtual;
+
+  bool _atualizandoNotificacao = false;
+  bool _excluindo = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _assinaturaAtual = widget.assinatura;
+  }
+
+  String _obterNomeCategoria(String chave) {
+    const categorias = {
+      'ENTRETENIMENTO': 'Entretenimento',
+      'MUSICA': 'Música',
+      'SOFTWARE': 'Software',
+      'JOGOS': 'Jogos',
+      'EDUCACAO': 'Educação',
+      'SAUDE_BEM_ESTAR': 'Saúde e bem-estar',
+      'COMPRAS': 'Compras',
+      'OUTROS': 'Outros',
+    };
+    return categorias[chave] ?? chave;
+  }
+
+  String _formatarData(DateTime data) {
+    return '${data.day.toString().padLeft(2, '0')}/'
+        '${data.month.toString().padLeft(2, '0')}/'
+        '${data.year}';
+  }
+
+  String _calcularDiasVencimento(DateTime vencimento) {
+    final hoje = DateTime.now();
+
+    final dataHoje = DateTime(
+      hoje.year,
+      hoje.month,
+      hoje.day,
+    );
+
+    final dataVencimento = DateTime(
+      vencimento.year,
+      vencimento.month,
+      vencimento.day,
+    );
+
+    final diferenca = dataVencimento.difference(dataHoje).inDays;
+
+    if (diferenca < 0) {
+      return 'venceu há ${-diferenca} dia(s)';
+    }
+
+    if (diferenca == 0) {
+      return 'vence hoje';
+    }
+
+    if (diferenca == 1) {
+      return 'vence amanhã';
+    }
+
+    return 'em $diferenca dias';
+  }
+
+  String _formatarValor(double valor) {
+    return valor.toStringAsFixed(2).replaceAll('.', ',');
+  }
+
+  String _obterHorarioAlerta(AssinaturaModel item) {
+    final horario = item.horarioAlerta.trim();
+
+    if (horario.isEmpty) {
+      return 'Não definido';
+    }
+
+    return horario;
+  }
+
+  void _mostrarMensagem(
+      String mensagem, {
+        bool erro = false,
+      }) {
+    if (!mounted) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(mensagem),
+        backgroundColor: erro
+            ? Colors.redAccent
+            : const Color(0xFF1B2A4A),
+      ),
+    );
+  }
+
+  void _voltarDaPagina() {
+    if (widget.onVoltar != null) {
+      widget.onVoltar!();
+    } else {
+      Navigator.pop(context);
+    }
+  }
+
+  Future<void> _atualizarAssinaturaLocal() async {
+    final item = _assinaturaAtual;
+
+    if (item == null) return;
+
+    await _repository.carregarAssinaturas();
+
+    if (!mounted) return;
+
+    final atualizada = _repository.assinaturas.where(
+          (assinatura) => assinatura.id == item.id,
+    );
+
+    if (atualizada.isNotEmpty) {
+      setState(() {
+        _assinaturaAtual = atualizada.first;
+      });
+    }
+  }
+
+  Future<void> _abrirEdicao() async {
+    final item = _assinaturaAtual;
+
+    if (item == null) return;
+
+    final resultado = await Navigator.push<AssinaturaModel>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EditarAssinaturaPagina(
+          assinatura: item,
+        ),
+      ),
+    );
+
+    if (!mounted) return;
+
+    if (resultado != null) {
+      setState(() {
+        _assinaturaAtual = resultado;
+      });
+
+      await _atualizarAssinaturaLocal();
+    }
+  }
+
+  Future<void> _abrirCancelamento() async {
+    final item = _assinaturaAtual;
+
+    if (item == null) return;
+
     final resultado = await Navigator.push<bool>(
       context,
       MaterialPageRoute(
@@ -32,6 +186,10 @@ class _DetalhesAssinaturaPaginaState
         ),
       ),
     );
+
+    if (!mounted) return;
+
+    await _atualizarAssinaturaLocal();
 
     if (!mounted) return;
 
@@ -44,12 +202,71 @@ class _DetalhesAssinaturaPaginaState
     }
   }
 
-  void _confirmarExclusao(
-      BuildContext context,
-      String idAssinatura,
-      String nomeAssinatura,
-      ) {
-    showDialog(
+  Future<void> _alternarNotificacao() async {
+    if (_atualizandoNotificacao) return;
+
+    final item = _assinaturaAtual;
+
+    if (item == null) return;
+
+    setState(() {
+      _atualizandoNotificacao = true;
+    });
+
+    try {
+      final novaAssinatura = item.copyWith(
+        notificacaoAtivada: !item.notificacaoAtivada,
+      );
+
+      final sucesso = await _repository.atualizarAssinatura(
+        novaAssinatura,
+      );
+
+      if (!mounted) return;
+
+      if (sucesso) {
+        setState(() {
+          _assinaturaAtual = novaAssinatura;
+        });
+
+        _mostrarMensagem(
+          novaAssinatura.notificacaoAtivada
+              ? 'Notificações ativadas!'
+              : 'Notificações desativadas!',
+        );
+
+        await _atualizarAssinaturaLocal();
+      } else {
+        _mostrarMensagem(
+          'Não foi possível atualizar a notificação.',
+          erro: true,
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao atualizar notificação: $e');
+      debugPrint('$stackTrace');
+
+      _mostrarMensagem(
+        'Ocorreu um erro ao atualizar a notificação.',
+        erro: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _atualizandoNotificacao = false;
+        });
+      }
+    }
+  }
+
+  Future<void> _confirmarExclusao() async {
+    if (_excluindo) return;
+
+    final item = _assinaturaAtual;
+
+    if (item == null) return;
+
+    final confirmar = await showDialog<bool>(
       context: context,
       builder: (BuildContext ctx) {
         return AlertDialog(
@@ -67,7 +284,7 @@ class _DetalhesAssinaturaPaginaState
           ),
           content: Text(
             'Tem certeza que deseja excluir a assinatura de '
-                '"$nomeAssinatura"? Essa ação não poderá ser desfeita.',
+                '"${item.nome}"? Essa ação não poderá ser desfeita.',
             style: const TextStyle(
               color: Color(0xFF1B2A4A),
               fontSize: 14,
@@ -75,7 +292,9 @@ class _DetalhesAssinaturaPaginaState
           ),
           actions: [
             TextButton(
-              onPressed: () => Navigator.pop(ctx),
+              onPressed: () {
+                Navigator.pop(ctx, false);
+              },
               child: const Text(
                 'CANCELAR',
                 style: TextStyle(
@@ -86,22 +305,7 @@ class _DetalhesAssinaturaPaginaState
             ),
             ElevatedButton(
               onPressed: () {
-                Navigator.pop(ctx);
-
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      'Assinatura "$nomeAssinatura" excluída com sucesso!',
-                    ),
-                    backgroundColor: Colors.redAccent,
-                  ),
-                );
-
-                if (widget.onVoltar != null) {
-                  widget.onVoltar!();
-                } else {
-                  Navigator.pop(context, true);
-                }
+                Navigator.pop(ctx, true);
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.red,
@@ -119,32 +323,107 @@ class _DetalhesAssinaturaPaginaState
         );
       },
     );
+
+    if (!mounted || confirmar != true) return;
+
+    setState(() {
+      _excluindo = true;
+    });
+
+    try {
+      await _repository.removerAssinatura(item.id);
+
+      // Confirma a exclusão consultando novamente o backend.
+      await _repository.carregarAssinaturas();
+
+      if (!mounted) return;
+
+      final aindaExiste = _repository.assinaturas.any(
+            (assinatura) => assinatura.id == item.id,
+      );
+
+      if (!aindaExiste) {
+        _mostrarMensagem(
+          'Assinatura "${item.nome}" excluída com sucesso!',
+        );
+
+        if (widget.onVoltar != null) {
+          widget.onVoltar!();
+        } else {
+          Navigator.pop(context, true);
+        }
+      } else {
+        _mostrarMensagem(
+          'Não foi possível excluir a assinatura.',
+          erro: true,
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('Erro ao excluir assinatura: $e');
+      debugPrint('$stackTrace');
+
+      _mostrarMensagem(
+        'Ocorreu um erro ao excluir a assinatura.',
+        erro: true,
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _excluindo = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final item = widget.assinatura ??
-        AssinaturaModel(
-          id: '1',
-          nome: 'IFOOD',
-          valor: 19.90,
-          dataVencimento: DateTime(2027, 9, 20),
-          metodoPagamento: 'Cartão de Crédito',
-        );
+    final item = _assinaturaAtual;
 
-    final valorFormatado =
-    item.valor.toStringAsFixed(2).replaceAll('.', ',');
+    if (item == null) {
+      return Scaffold(
+        backgroundColor: const Color(0xFFD3D3D3),
+        body: SafeArea(
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(
+                  Icons.subscriptions_outlined,
+                  size: 60,
+                  color: Color(0xFF1B2A4A),
+                ),
+                const SizedBox(height: 16),
+                const Text(
+                  'Nenhuma assinatura encontrada.',
+                  style: TextStyle(
+                    color: Color(0xFF1B2A4A),
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(height: 16),
+                ElevatedButton(
+                  onPressed: _voltarDaPagina,
+                  child: const Text('VOLTAR'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
 
-    final dataFormatada =
-        '${item.dataVencimento.day.toString().padLeft(2, '0')}/'
-        '${item.dataVencimento.month.toString().padLeft(2, '0')}/'
-        '${item.dataVencimento.year}';
+    final valorFormatado = _formatarValor(item.valor);
+    final dataFormatada = _formatarData(item.dataVencimento);
+    final diasVencimento =
+    _calcularDiasVencimento(item.dataVencimento);
 
     return Scaffold(
       backgroundColor: const Color(0xFFD3D3D3),
       body: SingleChildScrollView(
         child: Column(
           children: [
+            // Cabeçalho
             Container(
               padding: const EdgeInsets.only(
                 top: 50,
@@ -175,22 +454,23 @@ class _DetalhesAssinaturaPaginaState
                           color: Color(0xFF1B2A4A),
                           size: 28,
                         ),
-                        onPressed: widget.onVoltar ??
-                                () => Navigator.pop(context),
+                        onPressed: _voltarDaPagina,
                       ),
                       Image.asset(
                         'assets/images/logo.png',
                         height: 38,
-                        errorBuilder: (context, error, stackTrace) =>
-                        const Text(
-                          'Assinei\n& Esqueci',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1B2A4A),
-                            fontSize: 12,
-                          ),
-                        ),
+                        errorBuilder: (context, error, stackTrace) {
+                          return const Text(
+                            'Assinei\n& Esqueci',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1B2A4A),
+                              fontSize: 12,
+                            ),
+                          );
+                        },
                       ),
+                      const SizedBox(width: 48),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -227,42 +507,27 @@ class _DetalhesAssinaturaPaginaState
                         ),
                         const SizedBox(height: 6),
                         _linhaInfo('SERVIÇO:', item.nome),
+                        _linhaInfo('CATEGORIA:', _obterNomeCategoria(item.categoria)),
                         _linhaInfo(
                           'VALOR:',
-                          'R\$ $valorFormatado/mês',
+                          'R\$ $valorFormatado',
                         ),
                         _linhaInfo(
                           'VENCIMENTO:',
-                          '$dataFormatada (em 3 dias)',
+                          '$dataFormatada ($diasVencimento)',
                         ),
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 14),
 
-                  // Botão Editar dados da assinatura
+                  // Botão editar assinatura
                   SizedBox(
                     width: double.infinity,
                     height: 42,
                     child: OutlinedButton(
-                      onPressed: () async {
-                        final assinaturaAtualizada =
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) =>
-                                EditarAssinaturaPagina(
-                                  assinatura: item,
-                                ),
-                          ),
-                        );
-
-                        if (assinaturaAtualizada != null) {
-                          debugPrint(
-                            'Assinatura retornou da edição.',
-                          );
-                        }
-                      },
+                      onPressed: _abrirEdicao,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF1B2A4A),
                         side: const BorderSide(
@@ -284,97 +549,110 @@ class _DetalhesAssinaturaPaginaState
                   const SizedBox(height: 14),
 
                   // Card 2: Método de pagamento
-                  _construirCardBase(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'MÉTODO DE PAGAMENTO:',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1B2A4A),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
+                  ListenableBuilder(
+                    listenable: CartaoRepository.instance,
+                    builder: (context, child) {
+                      final cartaoVinculado =
+                      CartaoRepository.instance.obterCartaoPorId(
+                        item.cartaoId,
+                      );
+
+                      final rotuloMetodo =
+                      item.metodoPagamento.toUpperCase();
+
+                      final detalheCartao = cartaoVinculado != null
+                          ? '${cartaoVinculado.nome} '
+                          '(${cartaoVinculado.bandeira} '
+                          '•••• ${cartaoVinculado.ultimosDigitos})'
+                          : 'Nenhum cartão específico vinculado';
+
+                      final corBgIcone =
+                          cartaoVinculado?.cor ??
+                              const Color(0xFF1B2A4A);
+
+                      return _construirCardBase(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Container(
-                              padding: const EdgeInsets.all(6),
-                              decoration: BoxDecoration(
-                                color: const Color(0xFF1B2A4A),
-                                borderRadius: BorderRadius.circular(6),
-                              ),
-                              child: const Icon(
-                                Icons.credit_card,
-                                color: Colors.amber,
-                                size: 28,
+                            const Text(
+                              'MÉTODO DE PAGAMENTO:',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1B2A4A),
                               ),
                             ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment:
-                                CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    item.metodoPagamento.toUpperCase(),
-                                    style: const TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1B2A4A),
-                                    ),
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: corBgIcone,
+                                    borderRadius:
+                                    BorderRadius.circular(6),
                                   ),
-                                  const Text(
-                                    'VISA *** 1162',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.black54,
-                                      fontWeight: FontWeight.w600,
-                                    ),
+                                  child: const Icon(
+                                    Icons.credit_card,
+                                    color: Colors.amber,
+                                    size: 28,
                                   ),
-                                ],
-                              ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        rotuloMetodo,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1B2A4A),
+                                        ),
+                                      ),
+                                      Text(
+                                        detalheCartao,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.black54,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
-                            TextButton(
-                              onPressed: () {},
-                              child: const Text(
-                                'REMOVER',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.black54,
+                            const SizedBox(height: 12),
+                            SizedBox(
+                              width: double.infinity,
+                              height: 36,
+                              child: OutlinedButton(
+                                onPressed: _abrirEdicao,
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor:
+                                  const Color(0xFF1B2A4A),
+                                  side: const BorderSide(
+                                    color: Color(0xFF1B2A4A),
+                                    width: 1.5,
+                                  ),
+                                  shape: const StadiumBorder(),
+                                ),
+                                child: const Text(
+                                  'ALTERAR MÉTODO / CARTÃO',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                  ),
                                 ),
                               ),
                             ),
                           ],
                         ),
-                        const SizedBox(height: 12),
-                        SizedBox(
-                          width: double.infinity,
-                          height: 36,
-                          child: OutlinedButton(
-                            onPressed: () {},
-                            style: OutlinedButton.styleFrom(
-                              foregroundColor:
-                              const Color(0xFF1B2A4A),
-                              side: const BorderSide(
-                                color: Color(0xFF1B2A4A),
-                                width: 1.5,
-                              ),
-                              shape: const StadiumBorder(),
-                            ),
-                            child: const Text(
-                              'ALTERAR MÉTODO DE PAGAMENTO',
-                              style: TextStyle(
-                                fontSize: 11,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
 
                   const SizedBox(height: 14),
@@ -395,22 +673,23 @@ class _DetalhesAssinaturaPaginaState
                         const SizedBox(height: 6),
                         _linhaInfo(
                           'ALERTA DEFINIDO PARA:',
-                          '$dataFormatada ÀS 10h',
+                          '${_formatarData(item.dataVencimento)} '
+                              'ÀS ${_obterHorarioAlerta(item)}',
                         ),
                         _linhaInfo(
                           'NOTIFICAÇÃO:',
-                          notificacaoAtiva ? 'Ativada' : 'Desativada',
+                          item.notificacaoAtivada
+                              ? 'Ativada'
+                              : 'Desativada',
                         ),
                         const SizedBox(height: 12),
                         SizedBox(
                           width: double.infinity,
                           height: 36,
                           child: OutlinedButton(
-                            onPressed: () {
-                              setState(() {
-                                notificacaoAtiva = !notificacaoAtiva;
-                              });
-                            },
+                            onPressed: _atualizandoNotificacao
+                                ? null
+                                : _alternarNotificacao,
                             style: OutlinedButton.styleFrom(
                               foregroundColor:
                               const Color(0xFF1B2A4A),
@@ -420,9 +699,19 @@ class _DetalhesAssinaturaPaginaState
                               ),
                               shape: const StadiumBorder(),
                             ),
-                            child: const Text(
-                              'EDITAR ALERTA',
-                              style: TextStyle(
+                            child: _atualizandoNotificacao
+                                ? const SizedBox(
+                              width: 18,
+                              height: 18,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                              ),
+                            )
+                                : Text(
+                              item.notificacaoAtivada
+                                  ? 'DESATIVAR ALERTA'
+                                  : 'ATIVAR ALERTA',
+                              style: const TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -452,12 +741,12 @@ class _DetalhesAssinaturaPaginaState
 
                   const SizedBox(height: 24),
 
-                  // Botão Cancelar assinatura
+                  // Botão cancelar assinatura
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: OutlinedButton(
-                      onPressed: () => _abrirCancelamento(item),
+                      onPressed: _abrirCancelamento,
                       style: OutlinedButton.styleFrom(
                         foregroundColor: const Color(0xFF1B2A4A),
                         side: const BorderSide(
@@ -479,23 +768,30 @@ class _DetalhesAssinaturaPaginaState
 
                   const SizedBox(height: 12),
 
-                  // Botão Excluir assinatura
+                  // Botão excluir assinatura
                   SizedBox(
                     width: double.infinity,
                     height: 48,
                     child: ElevatedButton(
-                      onPressed: () => _confirmarExclusao(
-                        context,
-                        item.id,
-                        item.nome,
-                      ),
+                      onPressed: _excluindo
+                          ? null
+                          : _confirmarExclusao,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: const Color(0xFFB71C1C),
                         foregroundColor: Colors.white,
                         shape: const StadiumBorder(),
                         elevation: 2,
                       ),
-                      child: const Text(
+                      child: _excluindo
+                          ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          color: Colors.white,
+                          strokeWidth: 2,
+                        ),
+                      )
+                          : const Text(
                         'EXCLUIR ASSINATURA',
                         style: TextStyle(
                           fontSize: 13,
@@ -516,7 +812,9 @@ class _DetalhesAssinaturaPaginaState
     );
   }
 
-  Widget _construirCardBase({required Widget child}) {
+  Widget _construirCardBase({
+    required Widget child,
+  }) {
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),

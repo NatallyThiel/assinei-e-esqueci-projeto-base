@@ -25,15 +25,30 @@ class AssinaturasPagina extends StatelessWidget {
         builder: (context, child) {
           final assinaturas = repository.assinaturas;
 
-          final proximoVencimento = assinaturas.isEmpty
-              ? null
-              : assinaturas
-              .map((a) => a.dataVencimento)
-              .reduce((a, b) => a.isBefore(b) ? a : b);
+          final hoje = DateTime(
+            DateTime.now().year,
+            DateTime.now().month,
+            DateTime.now().day,
+          );
 
-          final totalMensal = repository.totalGastoMensal
-              .toStringAsFixed(2)
-              .replaceAll('.', ',');
+          // Identificar o próximo vencimento considerando apenas hoje em diante
+          final futurasOuHoje = assinaturas.where((a) {
+            final d = DateTime(
+              a.dataVencimento.year,
+              a.dataVencimento.month,
+              a.dataVencimento.day,
+            );
+            return !d.isBefore(hoje);
+          }).toList()
+            ..sort((a, b) => a.dataVencimento.compareTo(b.dataVencimento));
+
+          final proximaAssinatura =
+              futurasOuHoje.isNotEmpty ? futurasOuHoje.first : null;
+
+          final resumo = repository.resumoFinanceiro;
+          final totalExibicao = resumo != null
+              ? resumo.totalValoresAtivos.toStringAsFixed(2).replaceAll('.', ',')
+              : repository.totalGastoMensal.toStringAsFixed(2).replaceAll('.', ',');
 
           return SingleChildScrollView(
             child: Column(
@@ -123,7 +138,7 @@ class AssinaturasPagina extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               const Text(
-                                'RESUMO DOS GASTOS',
+                                'TOTAL EM ASSINATURAS ATIVAS',
                                 style: TextStyle(
                                   color: Color(0xFF1B2A4A),
                                   fontSize: 13,
@@ -133,7 +148,7 @@ class AssinaturasPagina extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               const Text(
-                                'Total mensal estimado',
+                                'Soma dos valores das assinaturas',
                                 style: TextStyle(
                                   color: Color(0xFF1B2A4A),
                                   fontSize: 12,
@@ -141,7 +156,7 @@ class AssinaturasPagina extends StatelessWidget {
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                'R\$ $totalMensal',
+                                'R\$ $totalExibicao',
                                 style: const TextStyle(
                                   color: Color(0xFF1B2A4A),
                                   fontSize: 27,
@@ -180,15 +195,36 @@ class AssinaturasPagina extends StatelessWidget {
                                   ),
                                   const SizedBox(width: 8),
                                   Expanded(
-                                    child: Text(
-                                      proximoVencimento == null
-                                          ? 'Nenhum vencimento cadastrado'
-                                          : 'Próximo vencimento: ${_dataFormatada(proximoVencimento)}',
-                                      style: const TextStyle(
-                                        color: Color(0xFF1B2A4A),
-                                        fontSize: 12,
-                                      ),
-                                    ),
+                                    child: proximaAssinatura == null
+                                        ? const Text(
+                                            'Nenhum próximo vencimento cadastrado',
+                                            style: TextStyle(
+                                              color: Color(0xFF1B2A4A),
+                                              fontSize: 12,
+                                            ),
+                                          )
+                                        : Column(
+                                            crossAxisAlignment:
+                                                CrossAxisAlignment.start,
+                                            children: [
+                                              Text(
+                                                'Próxima cobrança: ${proximaAssinatura.nome.toUpperCase()}',
+                                                style: const TextStyle(
+                                                  color: Color(0xFF1B2A4A),
+                                                  fontSize: 12,
+                                                  fontWeight: FontWeight.bold,
+                                                ),
+                                              ),
+                                              const SizedBox(height: 2),
+                                              Text(
+                                                'Data: ${_dataFormatada(proximaAssinatura.dataVencimento)}  •  Valor: R\$ ${proximaAssinatura.valor.toStringAsFixed(2).replaceAll('.', ',')}',
+                                                style: const TextStyle(
+                                                  color: Color(0xFF1B2A4A),
+                                                  fontSize: 11,
+                                                ),
+                                              ),
+                                            ],
+                                          ),
                                   ),
                                 ],
                               ),
@@ -280,18 +316,56 @@ class AssinaturasPagina extends StatelessWidget {
   }
 
   Widget _cardAssinatura(
-      BuildContext context,
-      AssinaturaModel item,
-      ) {
+    BuildContext context,
+    AssinaturaModel item,
+  ) {
+    final hoje = DateTime(
+      DateTime.now().year,
+      DateTime.now().month,
+      DateTime.now().day,
+    );
+    final dataVenc = DateTime(
+      item.dataVencimento.year,
+      item.dataVencimento.month,
+      item.dataVencimento.day,
+    );
+    final diferencaDias = dataVenc.difference(hoje).inDays;
+
     final dataStr = _dataFormatada(item.dataVencimento);
     final valorStr = item.valor.toStringAsFixed(2).replaceAll('.', ',');
+
+    final String tagTexto = diferencaDias < 0
+        ? 'ATRASADO'
+        : diferencaDias == 0
+            ? 'VENCE HOJE'
+            : diferencaDias <= 3
+                ? 'EM BREVE'
+                : 'EM DIA';
+
+    final Color corStatus = diferencaDias < 0
+        ? Colors.red.shade700
+        : diferencaDias == 0
+            ? Colors.orange.shade800
+            : diferencaDias <= 3
+                ? Colors.amber.shade900
+                : const Color(0xFF1B2A4A);
+
+    final Color corFundoCard = diferencaDias < 0
+        ? Colors.red.shade50
+        : diferencaDias == 0
+            ? Colors.orange.shade50
+            : const Color(0xFFC8CEDC);
 
     return Container(
       margin: const EdgeInsets.only(bottom: 14),
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: const Color(0xFFC8CEDC),
+        color: corFundoCard,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: diferencaDias <= 3 ? corStatus.withAlpha(120) : Colors.transparent,
+          width: 1.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -299,15 +373,35 @@ class AssinaturasPagina extends StatelessWidget {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Expanded(
-                child: Text(
-                  item.nome.toUpperCase(),
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF1B2A4A),
+              Row(
+                children: [
+                  Text(
+                    item.nome.toUpperCase(),
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF1B2A4A),
+                    ),
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding:
+                        const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: corStatus.withAlpha(25),
+                      borderRadius: BorderRadius.circular(6),
+                      border: Border.all(color: corStatus, width: 0.8),
+                    ),
+                    child: Text(
+                      tagTexto,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.bold,
+                        color: corStatus,
+                      ),
+                    ),
+                  ),
+                ],
               ),
               GestureDetector(
                 onTap: () async {
@@ -359,7 +453,7 @@ class AssinaturasPagina extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'R\$ $valorStr/mês',
+                      'R\$ $valorStr',
                       style: const TextStyle(
                         fontSize: 15,
                         fontWeight: FontWeight.bold,
@@ -376,9 +470,14 @@ class AssinaturasPagina extends StatelessWidget {
                     ),
                     Text(
                       'Vencimento: $dataStr',
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 10,
-                        color: Color(0xFF1B2A4A),
+                        fontWeight: diferencaDias <= 3
+                            ? FontWeight.bold
+                            : FontWeight.normal,
+                        color: diferencaDias <= 3
+                            ? corStatus
+                            : const Color(0xFF1B2A4A),
                       ),
                     ),
                     Text(

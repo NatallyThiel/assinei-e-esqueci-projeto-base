@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../data/models/assinatura_model.dart';
+import '../../data/repositories/cartao_repository.dart';
 import '../assinaturas/detalhes_assinatura_pagina.dart';
+import '../../data/repositories/assinatura_repository.dart';
 
 class GerenciarLembretePagina extends StatefulWidget {
   final AssinaturaModel assinatura;
@@ -17,43 +19,110 @@ class GerenciarLembretePagina extends StatefulWidget {
 
 class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
   late bool _notificacaoAtivada;
+  late DateTime _dataVencimento;
+  late String _horarioAlerta;
+  bool _salvando = false;
 
   @override
   void initState() {
     super.initState();
-    _notificacaoAtivada = true;
+    _notificacaoAtivada = widget.assinatura.notificacaoAtivada;
+    _dataVencimento = widget.assinatura.dataVencimento;
+    _horarioAlerta = widget.assinatura.horarioAlerta;
   }
 
-  void _editarAlerta() {
-    showDatePicker(
+  Future<void> _editarAlerta() async {
+    final hoje = DateTime.now();
+
+    final novaData = await showDatePicker(
       context: context,
-      initialDate: widget.assinatura.dataVencimento,
-      firstDate: DateTime.now(),
-      lastDate: DateTime.now().add(const Duration(days: 365)),
-    ).then((novaData) {
-      if (novaData != null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Data do alerta atualizada!')),
-        );
-      }
+      initialDate: _dataVencimento.isBefore(hoje) ? hoje : _dataVencimento,
+      firstDate: DateTime(hoje.year, hoje.month, hoje.day),
+      lastDate: hoje.add(const Duration(days: 365)),
+      helpText: 'Selecione a nova data de cobrança',
+      confirmText: 'CONFIRMAR',
+      cancelText: 'CANCELAR',
+    );
+
+    if (novaData == null || !mounted) return;
+
+    setState(() {
+      _dataVencimento = novaData;
     });
   }
 
-  void _salvarAlteracoes() {
+  Future<void> _editarHorario() async {
+    int horaAtual = 10;
+    int minutoAtual = 0;
+    try {
+      final partes = _horarioAlerta.split(':');
+      if (partes.length >= 2) {
+        horaAtual = int.parse(partes[0]);
+        minutoAtual = int.parse(partes[1]);
+      }
+    } catch (_) {}
+
+    final novoHorario = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay(hour: horaAtual, minute: minutoAtual),
+      helpText: 'Selecione o horário do alerta',
+      confirmText: 'CONFIRMAR',
+      cancelText: 'CANCELAR',
+    );
+
+    if (novoHorario == null || !mounted) return;
+
+    final horaStr = novoHorario.hour.toString().padLeft(2, '0');
+    final minStr = novoHorario.minute.toString().padLeft(2, '0');
+
+    setState(() {
+      _horarioAlerta = '$horaStr:$minStr';
+    });
+  }
+
+  Future<void> _salvarAlteracoes() async {
+    if (_salvando) return;
+
+    setState(() {
+      _salvando = true;
+    });
+
+    final assinaturaAtualizada = widget.assinatura.copyWith(
+      dataVencimento: _dataVencimento,
+      notificacaoAtivada: _notificacaoAtivada,
+      horarioAlerta: _horarioAlerta,
+    );
+
+    final sucesso = await AssinaturasRepository.instance
+        .atualizarAssinatura(assinaturaAtualizada);
+
+    if (!mounted) return;
+
+    setState(() {
+      _salvando = false;
+    });
+
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Alterações salvas com sucesso!'),
-        backgroundColor: Color(0xFF1B2A4A),
+      SnackBar(
+        content: Text(
+          sucesso
+              ? 'Configurações de lembrete salvas com sucesso!'
+              : 'Não foi possível salvar as alterações.',
+        ),
+        backgroundColor: sucesso ? const Color(0xFF1B2A4A) : Colors.red,
       ),
     );
-    Navigator.pop(context);
+
+    if (sucesso) {
+      Navigator.pop(context, true);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     final item = widget.assinatura;
     final hoje = DateTime.now();
-    final dataVenc = item.dataVencimento;
+    final dataVenc = _dataVencimento;
     final diferencaDias = DateTime(dataVenc.year, dataVenc.month, dataVenc.day)
         .difference(DateTime(hoje.year, hoje.month, hoje.day))
         .inDays;
@@ -61,8 +130,8 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
     final String textoDias = diferencaDias < 0
         ? 'há ${-diferencaDias} dia(s)'
         : diferencaDias == 0
-        ? 'hoje'
-        : 'em $diferencaDias dia(s)';
+            ? 'hoje'
+            : 'em $diferencaDias dia(s)';
 
     final dataVencFormatada =
         "${dataVenc.day.toString().padLeft(2, '0')}/${dataVenc.month.toString().padLeft(2, '0')}/${dataVenc.year}";
@@ -103,7 +172,7 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
                         'assets/images/logo.png',
                         height: 38,
                         errorBuilder: (context, error, stackTrace) =>
-                        const Text(
+                            const Text(
                           'Assinei\n& Esqueci',
                           textAlign: TextAlign.end,
                           style: TextStyle(
@@ -147,7 +216,7 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
                         ),
                         const SizedBox(height: 8),
                         _linhaTexto('SERVIÇO:', item.nome.toUpperCase()),
-                        _linhaTexto('VALOR:', 'R\$ $valorFormatado/mês'),
+                        _linhaTexto('VALOR:', 'R\$ $valorFormatado'),
                         _linhaTexto('VENCIMENTO:',
                             '$dataVencFormatada ($textoDias)'),
                         const SizedBox(height: 12),
@@ -183,72 +252,67 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
                   ),
                   const SizedBox(height: 14),
 
-                  _cardContainer(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'MÉTODO DE PAGAMENTO:',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.bold,
-                            color: Color(0xFF1B2A4A),
-                          ),
-                        ),
-                        const SizedBox(height: 10),
-                        Row(
+                  ListenableBuilder(
+                    listenable: CartaoRepository.instance,
+                    builder: (context, child) {
+                      final cartaoVinculado =
+                          CartaoRepository.instance.obterCartaoPorId(item.cartaoId);
+
+                      final String rotuloMetodo = item.metodoPagamento.toUpperCase();
+                      final String detalheCartao = cartaoVinculado != null
+                          ? '${cartaoVinculado.nome} (${cartaoVinculado.bandeira} •••• ${cartaoVinculado.ultimosDigitos})'
+                          : 'Nenhum cartão específico vinculado';
+
+                      return _cardContainer(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Icon(
-                              Icons.credit_card,
-                              color: Color(0xFF2C436D),
-                              size: 32,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: const [
-                                  Text(
-                                    'CARTÃO DE CRÉDITO',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: Color(0xFF1B2A4A),
-                                    ),
-                                  ),
-                                  SizedBox(height: 2),
-                                  Text(
-                                    'VISA   ••• 1162',
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      color: Colors.black87,
-                                    ),
-                                  ),
-                                ],
+                            const Text(
+                              'MÉTODO DE PAGAMENTO:',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.bold,
+                                color: Color(0xFF1B2A4A),
                               ),
                             ),
-                            TextButton(
-                              onPressed: () {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(
-                                    content: Text(
-                                        'Método de pagamento removido.'),
-                                  ),
-                                );
-                              },
-                              child: const Text(
-                                'REMOVER',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.black54,
-                                  fontWeight: FontWeight.bold,
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.credit_card,
+                                  color: cartaoVinculado?.cor ?? const Color(0xFF2C436D),
+                                  size: 32,
                                 ),
-                              ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        rotuloMetodo,
+                                        style: const TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1B2A4A),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 2),
+                                      Text(
+                                        detalheCartao,
+                                        style: const TextStyle(
+                                          fontSize: 11,
+                                          color: Colors.black87,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         ),
-                      ],
-                    ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 14),
 
@@ -265,9 +329,27 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
                           ),
                         ),
                         const SizedBox(height: 8),
-                        _linhaTexto(
-                          'ALERTA DEFINIDO PARA:',
-                          '$dataVencFormatada ÀS 10h',
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Expanded(
+                              child: _linhaTexto(
+                                'ALERTA DEFINIDO PARA:',
+                                '$dataVencFormatada ÀS $_horarioAlerta',
+                              ),
+                            ),
+                            TextButton(
+                              onPressed: _editarHorario,
+                              child: const Text(
+                                'ALTERAR HORA',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF2C436D),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -278,7 +360,7 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
                             ),
                             Switch(
                               value: _notificacaoAtivada,
-                              activeColor: const Color(0xFF1B2A4A),
+                              activeThumbColor: const Color(0xFF1B2A4A),
                               onChanged: (val) {
                                 setState(() {
                                   _notificacaoAtivada = val;
@@ -288,22 +370,24 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
                           ],
                         ),
                         const SizedBox(height: 8),
-                        OutlinedButton(
+                        OutlinedButton.icon(
                           onPressed: _editarAlerta,
+                          icon: const Icon(Icons.calendar_month,
+                              size: 18, color: Color(0xFF1B2A4A)),
+                          label: const Text(
+                            'ALTERAR DATA DE COBRANÇA',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1B2A4A),
+                            ),
+                          ),
                           style: OutlinedButton.styleFrom(
                             side: const BorderSide(color: Color(0xFF1B2A4A)),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(20),
                             ),
                             minimumSize: const Size(double.infinity, 38),
-                          ),
-                          child: const Text(
-                            'EDITAR ALERTA',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              color: Color(0xFF1B2A4A),
-                            ),
                           ),
                         ),
                       ],
@@ -324,7 +408,7 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
                   const SizedBox(height: 20),
 
                   ElevatedButton(
-                    onPressed: _salvarAlteracoes,
+                    onPressed: _salvando ? null : _salvarAlteracoes,
                     style: ElevatedButton.styleFrom(
                       backgroundColor: const Color(0xFF1B2A4A),
                       minimumSize: const Size(double.infinity, 48),
@@ -332,14 +416,23 @@ class _GerenciarLembretePaginaState extends State<GerenciarLembretePagina> {
                         borderRadius: BorderRadius.circular(24),
                       ),
                     ),
-                    child: const Text(
-                      'SALVAR ALTERAÇÕES',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
+                    child: _salvando
+                        ? const SizedBox(
+                            width: 20,
+                            height: 20,
+                            child: CircularProgressIndicator(
+                              color: Colors.white,
+                              strokeWidth: 2,
+                            ),
+                          )
+                        : const Text(
+                            'SALVAR ALTERAÇÕES',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
                   ),
                   const SizedBox(height: 30),
                 ],

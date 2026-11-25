@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/models/assinatura_model.dart';
 import '../../data/repositories/assinatura_repository.dart';
+import '../../data/repositories/cartao_repository.dart';
 
 class EditarAssinaturaPagina extends StatefulWidget {
   final AssinaturaModel assinatura;
@@ -27,6 +28,8 @@ class _EditarAssinaturaPaginaState
 
   late String _metodoPagamento;
   late String _plano;
+  late String _categoria;
+  String? _cartaoId;
 
   bool _salvando = false;
 
@@ -44,6 +47,17 @@ class _EditarAssinaturaPaginaState
     'Plano Premium',
     'Plano Família',
   ];
+
+  final Map<String, String> _categorias = {
+    'ENTRETENIMENTO': 'Entretenimento',
+    'MUSICA': 'Música',
+    'SOFTWARE': 'Software',
+    'JOGOS': 'Jogos',
+    'EDUCACAO': 'Educação',
+    'SAUDE_BEM_ESTAR': 'Saúde e bem-estar',
+    'COMPRAS': 'Compras',
+    'OUTROS': 'Outros',
+  };
 
   @override
   void initState() {
@@ -70,6 +84,12 @@ class _EditarAssinaturaPaginaState
     _plano = _planos.contains(assinatura.plano)
         ? assinatura.plano
         : _planos.first;
+
+    _categoria = _categorias.containsKey(assinatura.categoria)
+        ? assinatura.categoria
+        : 'OUTROS';
+
+    _cartaoId = assinatura.cartaoId;
   }
 
   @override
@@ -91,6 +111,8 @@ class _EditarAssinaturaPaginaState
       confirmText: 'CONFIRMAR',
     );
 
+    if (!mounted) return;
+
     if (dataSelecionada != null) {
       setState(() {
         _dataVencimento = dataSelecionada;
@@ -105,27 +127,35 @@ class _EditarAssinaturaPaginaState
   }
 
   double? _converterValor(String valor) {
-    final valorLimpo = valor
+    var valorLimpo = valor
         .trim()
         .replaceAll('R\$', '')
-        .replaceAll(' ', '')
-        .replaceAll('.', '')
-        .replaceAll(',', '.');
+        .replaceAll(' ', '');
+
+    if (valorLimpo.contains(',')) {
+      valorLimpo = valorLimpo
+          .replaceAll('.', '')
+          .replaceAll(',', '.');
+    }
 
     return double.tryParse(valorLimpo);
   }
 
   Future<void> _salvarAlteracoes() async {
+    if (_salvando) return;
+
     if (!_chaveFormulario.currentState!.validate()) {
       return;
     }
 
     final valor = _converterValor(_controleValor.text);
 
-    if (valor == null) {
+    if (valor == null || valor <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Informe um valor válido.'),
+          content: Text(
+            'Informe um valor válido e maior que zero.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
@@ -137,47 +167,68 @@ class _EditarAssinaturaPaginaState
       _salvando = true;
     });
 
-    final assinaturaAtualizada = AssinaturaModel(
-      id: widget.assinatura.id,
-      nome: _controleNome.text.trim(),
-      valor: valor,
-      dataVencimento: _dataVencimento,
-      metodoPagamento: _metodoPagamento,
-      plano: _plano,
-      icone: widget.assinatura.icone,
-      corIcone: widget.assinatura.corIcone,
-    );
-
-    final sucesso =
-    await AssinaturasRepository.instance.atualizarAssinatura(
-      assinaturaAtualizada,
-    );
-
-    if (!mounted) return;
-
-    setState(() {
-      _salvando = false;
-    });
-
-    if (sucesso) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Assinatura atualizada com sucesso!'),
-          backgroundColor: Colors.green,
-        ),
+    try {
+      final assinaturaAtualizada = widget.assinatura.copyWith(
+        nome: _controleNome.text.trim(),
+        valor: valor,
+        dataVencimento: _dataVencimento,
+        metodoPagamento: _metodoPagamento,
+        plano: _plano,
+        categoria: _categoria,
+        cartaoId: _cartaoId,
       );
 
-      Navigator.pop(
-        context,
+      final sucesso =
+      await AssinaturasRepository.instance.atualizarAssinatura(
         assinaturaAtualizada,
       );
-    } else {
+
+      if (!mounted) return;
+
+      if (sucesso) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Assinatura atualizada com sucesso!',
+            ),
+            backgroundColor: Colors.green,
+          ),
+        );
+
+        Navigator.pop(
+          context,
+          assinaturaAtualizada,
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Não foi possível atualizar a assinatura.',
+            ),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      debugPrint('ERRO AO SALVAR ALTERAÇÕES: $e');
+      debugPrint('$stackTrace');
+
+      if (!mounted) return;
+
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Não foi possível atualizar a assinatura.'),
+          content: Text(
+            'Ocorreu um erro ao salvar as alterações.',
+          ),
           backgroundColor: Colors.red,
         ),
       );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _salvando = false;
+        });
+      }
     }
   }
 
@@ -282,9 +333,54 @@ class _EditarAssinaturaPaginaState
 
                           const SizedBox(height: 16),
 
+                          DropdownButtonFormField<String>(
+                            initialValue: _categoria,
+                            decoration: const InputDecoration(
+                              labelText: 'Categoria',
+                              labelStyle: TextStyle(
+                                color: Color(0xFF1B2A4A),
+                              ),
+                              prefixIcon: Icon(
+                                Icons.category_outlined,
+                                color: Color(0xFF1B2A4A),
+                              ),
+                              enabledBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Color(0xFF1B2A4A),
+                                ),
+                              ),
+                              focusedBorder: UnderlineInputBorder(
+                                borderSide: BorderSide(
+                                  color: Color(0xFF1B2A4A),
+                                  width: 2,
+                                ),
+                              ),
+                            ),
+                            dropdownColor: const Color(0xFFC8CEDC),
+                            style: const TextStyle(
+                              color: Color(0xFF1B2A4A),
+                              fontSize: 14,
+                            ),
+                            items: _categorias.entries.map((cat) {
+                              return DropdownMenuItem<String>(
+                                value: cat.key,
+                                child: Text(cat.value),
+                              );
+                            }).toList(),
+                            onChanged: (novoVal) {
+                              if (novoVal != null) {
+                                setState(() {
+                                  _categoria = novoVal;
+                                });
+                              }
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
                           _campoTexto(
                             controller: _controleValor,
-                            label: 'Valor mensal',
+                            label: 'Valor',
                             icon: Icons.attach_money,
                             keyboardType:
                             const TextInputType.numberWithOptions(
@@ -296,7 +392,11 @@ class _EditarAssinaturaPaginaState
                                 return 'Informe o valor';
                               }
 
-                              if (_converterValor(valor) == null) {
+                              final valorConvertido =
+                              _converterValor(valor);
+
+                              if (valorConvertido == null ||
+                                  valorConvertido <= 0) {
                                 return 'Informe um valor válido';
                               }
 
@@ -370,6 +470,71 @@ class _EditarAssinaturaPaginaState
 
                           const SizedBox(height: 16),
 
+                          ListenableBuilder(
+                            listenable: CartaoRepository.instance,
+                            builder: (context, child) {
+                              final cartoes =
+                                  CartaoRepository.instance.cartoes;
+
+                              return DropdownButtonFormField<String?>(
+                                initialValue: cartoes.any(
+                                      (c) => c.id == _cartaoId,
+                                )
+                                    ? _cartaoId
+                                    : null,
+                                decoration: const InputDecoration(
+                                  labelText: 'Cartão de Pagamento',
+                                  labelStyle: TextStyle(
+                                    color: Color(0xFF1B2A4A),
+                                  ),
+                                  prefixIcon: Icon(
+                                    Icons.credit_card,
+                                    color: Color(0xFF1B2A4A),
+                                  ),
+                                  enabledBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF1B2A4A),
+                                    ),
+                                  ),
+                                  focusedBorder: UnderlineInputBorder(
+                                    borderSide: BorderSide(
+                                      color: Color(0xFF1B2A4A),
+                                      width: 2,
+                                    ),
+                                  ),
+                                ),
+                                dropdownColor: const Color(0xFFC8CEDC),
+                                style: const TextStyle(
+                                  color: Color(0xFF1B2A4A),
+                                  fontSize: 14,
+                                ),
+                                items: [
+                                  const DropdownMenuItem<String?>(
+                                    value: null,
+                                    child: Text(
+                                      'Nenhum cartão vinculado',
+                                    ),
+                                  ),
+                                  ...cartoes.map((c) {
+                                    return DropdownMenuItem<String?>(
+                                      value: c.id,
+                                      child: Text(
+                                        '${c.nome} (${c.bandeira} •••• ${c.ultimosDigitos})',
+                                      ),
+                                    );
+                                  }),
+                                ],
+                                onChanged: (novoVal) {
+                                  setState(() {
+                                    _cartaoId = novoVal;
+                                  });
+                                },
+                              );
+                            },
+                          ),
+
+                          const SizedBox(height: 16),
+
                           _construirDropdown(
                             titulo: 'Plano',
                             valor: _plano,
@@ -425,7 +590,9 @@ class _EditarAssinaturaPaginaState
                     SizedBox(
                       height: 48,
                       child: OutlinedButton(
-                        onPressed: () {
+                        onPressed: _salvando
+                            ? null
+                            : () {
                           Navigator.pop(context);
                         },
                         style: OutlinedButton.styleFrom(

@@ -1,7 +1,9 @@
+
 import 'package:flutter/material.dart';
 
 import '../../data/models/assinatura_model.dart';
 import '../../data/repositories/assinatura_repository.dart';
+import '../../data/repositories/cartao_repository.dart';
 
 class CadastroAssinaturaPagina extends StatefulWidget {
   const CadastroAssinaturaPagina({super.key});
@@ -19,10 +21,28 @@ class _CadastroAssinaturaPaginaState
   final _planoController = TextEditingController();
   final _valorController = TextEditingController();
   final _plataformaController = TextEditingController();
+  final _urlCancelamentoController = TextEditingController();
 
   DateTime? _dataVencimentoSelecionada;
+  DateTime? _dataInicioTeste;
+  DateTime? _dataFimTeste;
 
   String _metodoPagamento = 'Cartão de Crédito';
+  String? _cartaoSelecionadoId;
+
+  String _categoriaSelecionada = 'OUTROS';
+  bool _categoriaEscolhidaManualmente = false;
+
+  final Map<String, String> _categorias = {
+    'ENTRETENIMENTO': 'Entretenimento',
+    'MUSICA': 'Música',
+    'SOFTWARE': 'Software',
+    'JOGOS': 'Jogos',
+    'EDUCACAO': 'Educação',
+    'SAUDE_BEM_ESTAR': 'Saúde e bem-estar',
+    'COMPRAS': 'Compras',
+    'OUTROS': 'Outros',
+  };
 
   bool _lembreteAtivo = true;
   bool _testeGratis = false;
@@ -41,6 +61,7 @@ class _CadastroAssinaturaPaginaState
     _planoController.dispose();
     _valorController.dispose();
     _plataformaController.dispose();
+    _urlCancelamentoController.dispose();
     super.dispose();
   }
 
@@ -71,15 +92,110 @@ class _CadastroAssinaturaPaginaState
     }
   }
 
+  Future<void> _selecionarDataInicioTeste(BuildContext context) async {
+    final DateTime? selecionada = await showDatePicker(
+      context: context,
+      initialDate: _dataInicioTeste ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime(2035),
+    );
+
+    if (selecionada != null) {
+      setState(() {
+        _dataInicioTeste = selecionada;
+      });
+    }
+  }
+
+  Future<void> _selecionarDataFimTeste(BuildContext context) async {
+    final DateTime? selecionada = await showDatePicker(
+      context: context,
+      initialDate:
+      _dataFimTeste ?? DateTime.now().add(const Duration(days: 7)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2035),
+    );
+
+    if (selecionada != null) {
+      setState(() {
+        _dataFimTeste = selecionada;
+      });
+    }
+  }
+
+  // Sugere uma categoria com base no nome do serviço.
+  void _sugerirCategoria(String nome) {
+    if (_categoriaEscolhidaManualmente) return;
+
+    final servico = nome.toLowerCase().trim();
+
+    String categoria = 'OUTROS';
+
+    if ([
+      'netflix',
+      'disney+',
+      'hbo max',
+      'max',
+      'prime video',
+      'globoplay',
+      'paramount+',
+      'apple tv',
+      'crunchyroll',
+    ].any((nome) => servico.contains(nome))) {
+      categoria = 'ENTRETENIMENTO';
+    } else if ([
+      'spotify',
+      'deezer',
+      'youtube music',
+      'tidal',
+    ].any((nome) => servico.contains(nome))) {
+      categoria = 'MUSICA';
+    } else if ([
+      'microsoft 365',
+      'office',
+      'adobe',
+      'canva',
+      'google one',
+      'icloud',
+    ].any((nome) => servico.contains(nome))) {
+      categoria = 'SOFTWARE';
+    } else if ([
+      'xbox',
+      'playstation',
+      'nintendo',
+    ].any((nome) => servico.contains(nome))) {
+      categoria = 'JOGOS';
+    } else if ([
+      'duolingo',
+      'coursera',
+      'udemy',
+      'alura',
+    ].any((nome) => servico.contains(nome))) {
+      categoria = 'EDUCACAO';
+    } else if ([
+      'wellhub',
+      'gympass',
+      'smart fit',
+      'strava',
+    ].any((nome) => servico.contains(nome))) {
+      categoria = 'SAUDE_BEM_ESTAR';
+    }
+
+    setState(() {
+      _categoriaSelecionada = categoria;
+    });
+  }
+
+
   Future<void> _salvarAssinatura() async {
+    if (_salvando) return;
+
     if (!_formKey.currentState!.validate()) return;
 
     if (_dataVencimentoSelecionada == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text(
-            'Por favor, selecione uma data de vencimento.',
-          ),
+          content: Text('Por favor, selecione uma data de vencimento.'),
           backgroundColor: Colors.redAccent,
         ),
       );
@@ -105,6 +221,12 @@ class _CadastroAssinaturaPaginaState
 
     setState(() => _salvando = true);
 
+    final repository = AssinaturasRepository.instance;
+
+    final idsAntes = repository.assinaturas
+        .map((item) => item.id)
+        .toSet();
+
     final novaAssinatura = AssinaturaModel(
       id: '',
       nome: _nomeController.text.trim(),
@@ -114,57 +236,56 @@ class _CadastroAssinaturaPaginaState
       plano: _planoController.text.trim().isEmpty
           ? 'Plano Padrão'
           : _planoController.text.trim(),
+      categoria: _categoriaSelecionada,
       plataforma: _plataformaController.text.trim(),
       testeGratis: _testeGratis,
+      notificacaoAtivada: _lembreteAtivo,
+      urlCancelamento: _urlCancelamentoController.text.trim().isEmpty
+          ? null
+          : _urlCancelamentoController.text.trim(),
+      dataInicioTeste: _testeGratis ? _dataInicioTeste : null,
+      dataFimTeste: _testeGratis ? _dataFimTeste : null,
+      cartaoId: _cartaoSelecionadoId,
     );
 
     try {
-      await AssinaturasRepository.instance
-          .adicionarAssinatura(novaAssinatura);
-
-      if (!mounted) return;
-
-      await AssinaturasRepository.instance.carregarAssinaturas();
-
-      if (!mounted) return;
-
-      final assinaturas =
-          AssinaturasRepository.instance.assinaturas;
-
-      final encontrada = assinaturas.where(
-            (item) =>
-        item.nome == novaAssinatura.nome &&
-            item.valor == novaAssinatura.valor &&
-            item.dataVencimento.year ==
-                novaAssinatura.dataVencimento.year &&
-            item.dataVencimento.month ==
-                novaAssinatura.dataVencimento.month &&
-            item.dataVencimento.day ==
-                novaAssinatura.dataVencimento.day,
+      final sucesso = await repository.adicionarAssinatura(
+        novaAssinatura,
       );
 
-      if (encontrada.isNotEmpty) {
-        final assinaturaSalva = encontrada.first;
+      if (!mounted) return;
 
+      if (!sucesso) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('Assinatura salva no servidor!'),
-            backgroundColor: Colors.green,
-          ),
-        );
-
-        Navigator.pop(context, assinaturaSalva);
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'Não foi possível confirmar o cadastro no servidor. '
-                  'Confira o log do backend e a conexão.',
-            ),
+            content: Text('Não foi possível cadastrar a assinatura.'),
             backgroundColor: Colors.redAccent,
           ),
         );
+        return;
       }
+
+      final encontrada = repository.assinaturas.where(
+            (item) =>
+        !idsAntes.contains(item.id) &&
+            item.nome == novaAssinatura.nome &&
+            item.valor == novaAssinatura.valor &&
+            item.dataVencimento.year == novaAssinatura.dataVencimento.year &&
+            item.dataVencimento.month == novaAssinatura.dataVencimento.month &&
+            item.dataVencimento.day == novaAssinatura.dataVencimento.day,
+      );
+
+      final assinaturaSalva =
+      encontrada.isNotEmpty ? encontrada.first : null;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Assinatura cadastrada com sucesso!'),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      Navigator.pop(context, assinaturaSalva);
     } catch (e) {
       if (!mounted) return;
 
@@ -180,6 +301,7 @@ class _CadastroAssinaturaPaginaState
       }
     }
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -210,8 +332,7 @@ class _CadastroAssinaturaPaginaState
               child: Column(
                 children: [
                   Row(
-                    mainAxisAlignment:
-                    MainAxisAlignment.spaceBetween,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       IconButton(
                         icon: const Icon(
@@ -224,8 +345,7 @@ class _CadastroAssinaturaPaginaState
                       Image.asset(
                         'assets/images/logo.png',
                         height: 38,
-                        errorBuilder:
-                            (context, error, stackTrace) {
+                        errorBuilder: (context, error, stackTrace) {
                           return const Text(
                             'Assinei\n& Esqueci',
                             style: TextStyle(
@@ -251,11 +371,8 @@ class _CadastroAssinaturaPaginaState
                 ],
               ),
             ),
-
             Padding(
-              padding: const EdgeInsets.symmetric(
-                horizontal: 20,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 20),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -267,8 +384,7 @@ class _CadastroAssinaturaPaginaState
                         borderRadius: BorderRadius.circular(16),
                       ),
                       child: Column(
-                        crossAxisAlignment:
-                        CrossAxisAlignment.start,
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           const Text(
                             'INFORMAÇÕES DA ASSINATURA',
@@ -278,20 +394,72 @@ class _CadastroAssinaturaPaginaState
                               color: Color(0xFF1B2A4A),
                             ),
                           ),
-
                           const SizedBox(height: 14),
 
+                          // Nome do serviço.
                           _campoTexto(
                             label: 'Nome do Serviço',
                             hint: 'Ex: Netflix, Spotify, Disney+',
                             controller: _nomeController,
+                            onChanged: _sugerirCategoria,
                             validator: (valor) {
-                              if (valor == null ||
-                                  valor.trim().isEmpty) {
+                              if (valor == null || valor.trim().isEmpty) {
                                 return 'Informe o nome do serviço';
                               }
                               return null;
                             },
+                          ),
+
+                          const SizedBox(height: 12),
+
+                          // Seletor de categoria.
+                          const Text(
+                            'Categoria',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1B2A4A),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 12,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.black26),
+                            ),
+                            child: DropdownButtonHideUnderline(
+                              child: DropdownButton<String>(
+                                value: _categoriaSelecionada,
+                                isExpanded: true,
+                                icon: const Icon(
+                                  Icons.arrow_drop_down,
+                                  color: Color(0xFF1B2A4A),
+                                ),
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFF1B2A4A),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                items: _categorias.entries.map((categoria) {
+                                  return DropdownMenuItem<String>(
+                                    value: categoria.key,
+                                    child: Text(categoria.value),
+                                  );
+                                }).toList(),
+                                onChanged: (novaCategoria) {
+                                  if (novaCategoria == null) return;
+
+                                  setState(() {
+                                    _categoriaSelecionada = novaCategoria;
+                                    _categoriaEscolhidaManualmente = true;
+                                  });
+                                },
+                              ),
+                            ),
                           ),
 
                           const SizedBox(height: 12),
@@ -301,11 +469,9 @@ class _CadastroAssinaturaPaginaState
                             hint: 'Ex: Premium, Individual, Família',
                             controller: _planoController,
                           ),
-
                           const SizedBox(height: 12),
-
                           _campoTexto(
-                            label: 'Valor Mensal (R\$)',
+                            label: 'Valor (R\$)',
                             hint: 'Ex: 29,90',
                             controller: _valorController,
                             keyboardType:
@@ -313,8 +479,7 @@ class _CadastroAssinaturaPaginaState
                               decimal: true,
                             ),
                             validator: (valor) {
-                              if (valor == null ||
-                                  valor.trim().isEmpty) {
+                              if (valor == null || valor.trim().isEmpty) {
                                 return 'Informe o valor';
                               }
 
@@ -323,8 +488,7 @@ class _CadastroAssinaturaPaginaState
                                   .replaceAll('.', '')
                                   .replaceAll(',', '.');
 
-                              final numero =
-                              double.tryParse(normalizado);
+                              final numero = double.tryParse(normalizado);
 
                               if (numero == null || numero < 0) {
                                 return 'Digite um valor válido';
@@ -333,19 +497,19 @@ class _CadastroAssinaturaPaginaState
                               return null;
                             },
                           ),
-
                           const SizedBox(height: 12),
-
                           _campoTexto(
-                            label:
-                            'Plataforma de contratação (opcional)',
-                            hint:
-                            'Ex: Google Play, App Store, site do serviço',
+                            label: 'Plataforma de contratação (opcional)',
+                            hint: 'Ex: Google Play, App Store, site do serviço',
                             controller: _plataformaController,
                           ),
-
                           const SizedBox(height: 12),
-
+                          _campoTexto(
+                            label: 'Link de Cancelamento Oficial (opcional)',
+                            hint: 'Ex: https://www.netflix.com/youraccount',
+                            controller: _urlCancelamentoController,
+                          ),
+                          const SizedBox(height: 12),
                           const Text(
                             'Data do Próximo Vencimento',
                             style: TextStyle(
@@ -354,51 +518,37 @@ class _CadastroAssinaturaPaginaState
                               color: Color(0xFF1B2A4A),
                             ),
                           ),
-
                           const SizedBox(height: 6),
-
                           InkWell(
-                            onTap: () =>
-                                _selecionarData(context),
-                            borderRadius:
-                            BorderRadius.circular(10),
+                            onTap: () => _selecionarData(context),
+                            borderRadius: BorderRadius.circular(10),
                             child: Container(
-                              padding:
-                              const EdgeInsets.symmetric(
+                              padding: const EdgeInsets.symmetric(
                                 horizontal: 12,
                                 vertical: 12,
                               ),
                               decoration: BoxDecoration(
                                 color: Colors.white,
-                                borderRadius:
-                                BorderRadius.circular(10),
-                                border: Border.all(
-                                  color: Colors.black26,
-                                ),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(color: Colors.black26),
                               ),
                               child: Row(
                                 mainAxisAlignment:
                                 MainAxisAlignment.spaceBetween,
                                 children: [
                                   Text(
-                                    _dataVencimentoSelecionada ==
-                                        null
+                                    _dataVencimentoSelecionada == null
                                         ? 'Selecionar data'
                                         : '${_dataVencimentoSelecionada!.day.toString().padLeft(2, '0')}/'
                                         '${_dataVencimentoSelecionada!.month.toString().padLeft(2, '0')}/'
                                         '${_dataVencimentoSelecionada!.year}',
                                     style: TextStyle(
                                       fontSize: 12,
-                                      color:
-                                      _dataVencimentoSelecionada ==
-                                          null
+                                      color: _dataVencimentoSelecionada == null
                                           ? Colors.black38
-                                          : const Color(
-                                        0xFF1B2A4A,
-                                      ),
+                                          : const Color(0xFF1B2A4A),
                                       fontWeight:
-                                      _dataVencimentoSelecionada ==
-                                          null
+                                      _dataVencimentoSelecionada == null
                                           ? FontWeight.normal
                                           : FontWeight.bold,
                                     ),
@@ -412,9 +562,7 @@ class _CadastroAssinaturaPaginaState
                               ),
                             ),
                           ),
-
                           const SizedBox(height: 12),
-
                           const Text(
                             'Método de Pagamento',
                             style: TextStyle(
@@ -423,21 +571,15 @@ class _CadastroAssinaturaPaginaState
                               color: Color(0xFF1B2A4A),
                             ),
                           ),
-
                           const SizedBox(height: 6),
-
                           Container(
-                            padding:
-                            const EdgeInsets.symmetric(
+                            padding: const EdgeInsets.symmetric(
                               horizontal: 12,
                             ),
                             decoration: BoxDecoration(
                               color: Colors.white,
-                              borderRadius:
-                              BorderRadius.circular(10),
-                              border: Border.all(
-                                color: Colors.black26,
-                              ),
+                              borderRadius: BorderRadius.circular(10),
+                              border: Border.all(color: Colors.black26),
                             ),
                             child: DropdownButtonHideUnderline(
                               child: DropdownButton<String>(
@@ -452,14 +594,12 @@ class _CadastroAssinaturaPaginaState
                                   color: Color(0xFF1B2A4A),
                                   fontWeight: FontWeight.bold,
                                 ),
-                                items: _metodosPagamento.map(
-                                      (metodo) {
-                                    return DropdownMenuItem<String>(
-                                      value: metodo,
-                                      child: Text(metodo),
-                                    );
-                                  },
-                                ).toList(),
+                                items: _metodosPagamento.map((metodo) {
+                                  return DropdownMenuItem<String>(
+                                    value: metodo,
+                                    child: Text(metodo),
+                                  );
+                                }).toList(),
                                 onChanged: (novoValor) {
                                   if (novoValor != null) {
                                     setState(() {
@@ -470,12 +610,80 @@ class _CadastroAssinaturaPaginaState
                               ),
                             ),
                           ),
-
                           const SizedBox(height: 12),
+                          const Text(
+                            'Cartão de Pagamento (opcional)',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: Color(0xFF1B2A4A),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          ListenableBuilder(
+                            listenable: CartaoRepository.instance,
+                            builder: (context, child) {
+                              final cartoes =
+                                  CartaoRepository.instance.cartoes;
 
+                              return Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 12,
+                                ),
+                                decoration: BoxDecoration(
+                                  color: Colors.white,
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: Colors.black26),
+                                ),
+                                child: DropdownButtonHideUnderline(
+                                  child: DropdownButton<String?>(
+                                    value: _cartaoSelecionadoId,
+                                    isExpanded: true,
+                                    hint: const Text(
+                                      'Nenhum cartão selecionado',
+                                      style: TextStyle(
+                                        fontSize: 12,
+                                        color: Colors.black45,
+                                      ),
+                                    ),
+                                    items: [
+                                      const DropdownMenuItem<String?>(
+                                        value: null,
+                                        child: Text(
+                                          'Nenhum cartão vinculado',
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            color: Colors.black54,
+                                          ),
+                                        ),
+                                      ),
+                                      ...cartoes.map((c) {
+                                        return DropdownMenuItem<String?>(
+                                          value: c.id,
+                                          child: Text(
+                                            '${c.nome} (${c.bandeira} •••• ${c.ultimosDigitos})',
+                                            style: const TextStyle(
+                                              fontSize: 12,
+                                              color: Color(0xFF1B2A4A),
+                                              fontWeight: FontWeight.bold,
+                                            ),
+                                          ),
+                                        );
+                                      }),
+                                    ],
+                                    onChanged: (novoVal) {
+                                      setState(() {
+                                        _cartaoSelecionadoId = novoVal;
+                                      });
+                                    },
+                                  ),
+                                ),
+                              );
+                            },
+                          ),
+                          const SizedBox(height: 12),
                           Row(
-                            mainAxisAlignment:
-                            MainAxisAlignment.spaceBetween,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               const Expanded(
                                 child: Text(
@@ -489,8 +697,7 @@ class _CadastroAssinaturaPaginaState
                               ),
                               Switch(
                                 value: _lembreteAtivo,
-                                activeColor:
-                                const Color(0xFF1B2A4A),
+                                activeThumbColor: const Color(0xFF1B2A4A),
                                 onChanged: (val) {
                                   setState(() {
                                     _lembreteAtivo = val;
@@ -502,73 +709,139 @@ class _CadastroAssinaturaPaginaState
                         ],
                       ),
                     ),
-
                     const SizedBox(height: 12),
-
-                    const Text(
-                      'É um teste grátis?',
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: Color(0xFF1B2A4A),
-                      ),
-                    ),
-
-                    const SizedBox(height: 6),
-
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                      padding: const EdgeInsets.all(16),
                       decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(10),
-                        border: Border.all(color: Colors.black26),
+                        color: const Color(0xFFC8CEDC),
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      child: DropdownButtonHideUnderline(
-                        child: DropdownButton<bool>(
-                          value: _testeGratis,
-                          isExpanded: true,
-                          icon: const Icon(
-                            Icons.arrow_drop_down,
-                            color: Color(0xFF1B2A4A),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              const Text(
+                                'É UM TESTE GRÁTIS?',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1B2A4A),
+                                ),
+                              ),
+                              Switch(
+                                value: _testeGratis,
+                                activeThumbColor: const Color(0xFF1B2A4A),
+                                onChanged: (val) {
+                                  setState(() {
+                                    _testeGratis = val;
+                                  });
+                                },
+                              ),
+                            ],
                           ),
-                          style: const TextStyle(
-                            fontSize: 12,
-                            color: Color(0xFF1B2A4A),
-                            fontWeight: FontWeight.bold,
-                          ),
-                          items: const [
-                            DropdownMenuItem<bool>(
-                              value: false,
-                              child: Text('Não'),
-                            ),
-                            DropdownMenuItem<bool>(
-                              value: true,
-                              child: Text('Sim'),
+                          if (_testeGratis) ...[
+                            const SizedBox(height: 10),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Início do Teste',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1B2A4A),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      InkWell(
+                                        onTap: () =>
+                                            _selecionarDataInicioTeste(context),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                            BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: Colors.black26,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            _dataInicioTeste == null
+                                                ? 'Selecionar'
+                                                : '${_dataInicioTeste!.day.toString().padLeft(2, '0')}/${_dataInicioTeste!.month.toString().padLeft(2, '0')}/${_dataInicioTeste!.year}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF1B2A4A),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 10),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                    CrossAxisAlignment.start,
+                                    children: [
+                                      const Text(
+                                        'Fim do Teste',
+                                        style: TextStyle(
+                                          fontSize: 11,
+                                          fontWeight: FontWeight.bold,
+                                          color: Color(0xFF1B2A4A),
+                                        ),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      InkWell(
+                                        onTap: () =>
+                                            _selecionarDataFimTeste(context),
+                                        child: Container(
+                                          padding: const EdgeInsets.all(10),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius:
+                                            BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: Colors.black26,
+                                            ),
+                                          ),
+                                          child: Text(
+                                            _dataFimTeste == null
+                                                ? 'Selecionar'
+                                                : '${_dataFimTeste!.day.toString().padLeft(2, '0')}/${_dataFimTeste!.month.toString().padLeft(2, '0')}/${_dataFimTeste!.year}',
+                                            style: const TextStyle(
+                                              fontSize: 11,
+                                              color: Color(0xFF1B2A4A),
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
-                          onChanged: (novoValor) {
-                            if (novoValor != null) {
-                              setState(() {
-                                _testeGratis = novoValor;
-                              });
-                            }
-                          },
-                        ),
+                        ],
                       ),
                     ),
-
                     const SizedBox(height: 20),
-
                     SizedBox(
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _salvando
-                            ? null
-                            : _salvarAssinatura,
+                        onPressed: _salvando ? null : _salvarAssinatura,
                         style: ElevatedButton.styleFrom(
-                          backgroundColor:
-                          const Color(0xFF1B2A4A),
+                          backgroundColor: const Color(0xFF1B2A4A),
                           foregroundColor: Colors.white,
                           shape: const StadiumBorder(),
                           elevation: 2,
@@ -577,8 +850,7 @@ class _CadastroAssinaturaPaginaState
                             ? const SizedBox(
                           width: 22,
                           height: 22,
-                          child:
-                          CircularProgressIndicator(
+                          child: CircularProgressIndicator(
                             color: Colors.white,
                             strokeWidth: 2,
                           ),
@@ -593,7 +865,6 @@ class _CadastroAssinaturaPaginaState
                         ),
                       ),
                     ),
-
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -611,6 +882,7 @@ class _CadastroAssinaturaPaginaState
     required TextEditingController controller,
     TextInputType keyboardType = TextInputType.text,
     String? Function(String?)? validator,
+    void Function(String)? onChanged,
   }) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,11 +895,10 @@ class _CadastroAssinaturaPaginaState
             color: Color(0xFF1B2A4A),
           ),
         ),
-
         const SizedBox(height: 6),
-
         TextFormField(
           controller: controller,
+          onChanged: onChanged,
           keyboardType: keyboardType,
           validator: validator,
           style: const TextStyle(
@@ -642,20 +913,17 @@ class _CadastroAssinaturaPaginaState
             ),
             fillColor: Colors.white,
             filled: true,
-            contentPadding:
-            const EdgeInsets.symmetric(
+            contentPadding: const EdgeInsets.symmetric(
               horizontal: 12,
               vertical: 10,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide:
-              const BorderSide(color: Colors.black26),
+              borderSide: const BorderSide(color: Colors.black26),
             ),
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),
-              borderSide:
-              const BorderSide(color: Colors.black26),
+              borderSide: const BorderSide(color: Colors.black26),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(10),

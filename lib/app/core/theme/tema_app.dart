@@ -29,7 +29,7 @@ class TemaApp {
       cardTheme: CardThemeData(
         color: Colors.white,
         elevation: 1.5,
-        shadowColor: Colors.black.withOpacity(0.08),
+        shadowColor: Colors.black.withAlpha(20),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),

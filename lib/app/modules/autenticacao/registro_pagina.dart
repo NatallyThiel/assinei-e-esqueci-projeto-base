@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/tema_app.dart';
-import '../perfil/perfil_pagina.dart';
 import '../../data/repositories/usuario_repository.dart';
 
 class RegistroPagina extends StatefulWidget {
@@ -22,7 +21,7 @@ class _RegistroPaginaState extends State<RegistroPagina> {
   bool _confirmarSenhaVisivel = false;
   bool _carregando = false;
 
-  void _registrarUsuario() async {
+  Future<void> _registrarUsuario() async {
     if (_chaveFormulario.currentState!.validate()) {
       setState(() => _carregando = true);
 
@@ -39,17 +38,22 @@ class _RegistroPaginaState extends State<RegistroPagina> {
       setState(() => _carregando = false);
 
       if (sucesso) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => PerfilPagina(
-              nomeInicial: _controleNome.text,
-              emailInicial: _controleEmail.text,
-              cpfInicial: _controleCpf.text,
+        await UsuarioRepository.instance.logout();
+
+        if (!mounted) return;
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Conta criada com sucesso! Faça login para continuar.',
             ),
+            backgroundColor: Colors.green,
           ),
         );
+
+        Navigator.pop(context);
       } else {
+
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Não foi possível criar a conta.'),

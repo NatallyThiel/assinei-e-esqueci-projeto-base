@@ -6,8 +6,24 @@ import '../alertas/alertas_pagina.dart';
 import '../alertas/gerenciar_lembrete_pagina.dart';
 import '../assinaturas/assinaturas_pagina.dart';
 import '../assinaturas/cadastro_assinatura_pagina.dart';
+import '../calendario/calendario_cobrancas_pagina.dart';
+import '../cancelamento/central_cancelamentos_pagina.dart';
 import '../perfil/perfil_pagina.dart';
 import 'detalhes_cancelamento_pagina.dart';
+
+String _obterNomeCategoria(String chave) {
+  const categorias = {
+    'ENTRETENIMENTO': 'Entretenimento',
+    'MUSICA': 'Música',
+    'SOFTWARE': 'Software',
+    'JOGOS': 'Jogos',
+    'EDUCACAO': 'Educação',
+    'SAUDE_BEM_ESTAR': 'Saúde e bem-estar',
+    'COMPRAS': 'Compras',
+    'OUTROS': 'Outros',
+  };
+  return categorias[chave] ?? chave;
+}
 
 class PaginaInicial extends StatefulWidget {
   final int abaInicial;
@@ -57,7 +73,7 @@ class _PaginaInicialState extends State<PaginaInicial> {
         selectedItemColor: Colors.white,
         unselectedItemColor: Colors.white54,
         selectedLabelStyle:
-        const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
+            const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
         unselectedLabelStyle: const TextStyle(fontSize: 11),
         items: const [
           BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
@@ -211,7 +227,6 @@ class _HomeDashboardView extends StatelessWidget {
                             ),
                           ),
                           const SizedBox(height: 28),
-
                           InkWell(
                             onTap: () => _abrirCadastroAssinatura(context),
                             borderRadius: BorderRadius.circular(30),
@@ -257,28 +272,101 @@ class _HomeDashboardView extends StatelessWidget {
                     );
                   }
 
-                  final totalGasto = repository.totalGastoMensal
-                      .toStringAsFixed(2)
-                      .replaceAll('.', ',');
-
-                  final proximaAssinatura = List<AssinaturaModel>.from(assinaturasAtivas)
-                    ..sort((a, b) => a.dataVencimento.compareTo(b.dataVencimento));
+                  final proximaAssinatura =
+                      List<AssinaturaModel>.from(assinaturasAtivas)
+                        ..sort((a, b) =>
+                            a.dataVencimento.compareTo(b.dataVencimento));
                   final itemMaisProximo = proximaAssinatura.first;
 
                   final hoje = DateTime.now();
                   final dataVenc = itemMaisProximo.dataVencimento;
-                  final diferencaDias = DateTime(dataVenc.year, dataVenc.month, dataVenc.day)
-                      .difference(DateTime(hoje.year, hoje.month, hoje.day))
-                      .inDays;
+                  final diferencaDias =
+                      DateTime(dataVenc.year, dataVenc.month, dataVenc.day)
+                          .difference(DateTime(hoje.year, hoje.month, hoje.day))
+                          .inDays;
 
                   final String textoDias = diferencaDias < 0
                       ? 'VENCEU'
                       : diferencaDias == 0
-                      ? 'HOJE'
-                      : '$diferencaDias ${diferencaDias == 1 ? "DIA" : "DIAS"}';
+                          ? 'HOJE'
+                          : '$diferencaDias ${diferencaDias == 1 ? "DIA" : "DIAS"}';
+
+                  final testesGratis =
+                      assinaturasAtivas.where((a) => a.testeGratis).toList();
 
                   return Column(
                     children: [
+                      // Botões de Atalho Rápido
+                      Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const CentralCancelamentosPagina(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.cancel_outlined,
+                                  size: 16, color: Colors.white),
+                              label: const Text(
+                                'CANCELAMENTOS',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF1B2A4A),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) =>
+                                        const CalendarioCobrancasPagina(),
+                                  ),
+                                );
+                              },
+                              icon: const Icon(Icons.calendar_month,
+                                  size: 16, color: Colors.white),
+                              label: const Text(
+                                'CALENDÁRIO',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: const Color(0xFF2C436D),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 12),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(14),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      // Card Destaque Próximo Vencimento
                       _cardBase(
                         color: const Color(0xFFB0B7C6),
                         child: Row(
@@ -318,8 +406,8 @@ class _HomeDashboardView extends StatelessWidget {
                                       MaterialPageRoute(
                                         builder: (context) =>
                                             DetalhesCancelamentoPagina(
-                                              assinatura: itemMaisProximo,
-                                            ),
+                                          assinatura: itemMaisProximo,
+                                        ),
                                       ),
                                     );
                                   },
@@ -349,8 +437,8 @@ class _HomeDashboardView extends StatelessWidget {
                                       MaterialPageRoute(
                                         builder: (context) =>
                                             GerenciarLembretePagina(
-                                              assinatura: itemMaisProximo,
-                                            ),
+                                          assinatura: itemMaisProximo,
+                                        ),
                                       ),
                                     );
                                   },
@@ -379,28 +467,240 @@ class _HomeDashboardView extends StatelessWidget {
                       ),
                       const SizedBox(height: 14),
 
-                      _cardBase(
-                        child: Column(
-                          children: [
-                            const Text('TOTAL GASTO MENSAL',
+                      // Card Testes Grátis Ativos se houver
+                      if (testesGratis.isNotEmpty) ...[
+                        _cardBase(
+                          color: Colors.amber.shade100,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(Icons.timer_outlined,
+                                      color: Colors.amber.shade900, size: 20),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'TESTES GRATUITOS ATIVOS (${testesGratis.length})',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.amber.shade900,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 10),
+                              ...testesGratis.map((item) {
+                                final diasRestantes = item.diasRestantesTeste;
+                                final alertaFim = item.testeProximoDoFim;
+
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 6),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: Border.all(
+                                      color: alertaFim
+                                          ? Colors.amber.shade900
+                                          : Colors.transparent,
+                                    ),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Icon(item.icone,
+                                          color: item.corIcone, size: 20),
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              item.nome.toUpperCase(),
+                                              style: const TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF1B2A4A),
+                                              ),
+                                            ),
+                                            Text(
+                                              diasRestantes == 0
+                                                  ? 'Encerra HOJE!'
+                                                  : 'Faltam $diasRestantes dia(s) para cobrança',
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: alertaFim
+                                                    ? FontWeight.bold
+                                                    : FontWeight.normal,
+                                                color: alertaFim
+                                                    ? Colors.amber.shade900
+                                                    : Colors.black87,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      TextButton(
+                                        onPressed: () {
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (context) =>
+                                                  DetalhesCancelamentoPagina(
+                                                assinatura: item,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        child: const Text(
+                                          'CANCELAR',
+                                          style: TextStyle(
+                                            fontSize: 10,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1B2A4A),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ],
+
+                      // Card Resumo Financeiro Real da API
+                      if (repository.carregandoResumo) ...[
+                        _cardBase(
+                          child: const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(12.0),
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Color(0xFF1B2A4A),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ] else if (repository.erroResumo != null) ...[
+                        _cardBase(
+                          child: Column(
+                            children: [
+                              Text(
+                                repository.erroResumo!,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(
+                                  fontSize: 11,
+                                  color: Colors.redAccent,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              ElevatedButton(
+                                onPressed: () =>
+                                    repository.carregarResumoFinanceiro(),
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: const Color(0xFF1B2A4A),
+                                ),
+                                child: const Text(
+                                  'TENTAR NOVAMENTE',
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    color: Colors.white,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+                      ] else if (repository.resumoFinanceiro != null) ...[
+                        _cardBase(
+                          child: Column(
+                            children: [
+                              const Text(
+                                'TOTAL EM ASSINATURAS ATIVAS',
                                 style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1B2A4A),
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                'R\$ ${repository.resumoFinanceiro!.totalValoresAtivos.toStringAsFixed(2).replaceAll('.', ',')}',
+                                style: const TextStyle(
+                                  fontSize: 24,
+                                  fontWeight: FontWeight.bold,
+                                  color: Color(0xFF1B2A4A),
+                                ),
+                              ),
+                              Text(
+                                '${repository.resumoFinanceiro!.quantidadeAssinaturasAtivas} ASSINATURA(S) ATIVA(S)',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.black54,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 14),
+
+                        if (repository.resumoFinanceiro!.gastosPorCategoria.isNotEmpty) ...[
+                          _cardBase(
+                            color: Colors.white,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'VALORES POR CATEGORIA',
+                                  style: TextStyle(
                                     fontSize: 12,
                                     fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1B2A4A))),
-                            const SizedBox(height: 4),
-                            Text('R\$ $totalGasto',
-                                style: const TextStyle(
-                                    fontSize: 24,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1B2A4A))),
-                            const Text('ESTIMADO',
-                                style: TextStyle(
-                                    fontSize: 9,
-                                    color: Colors.black54,
-                                    fontWeight: FontWeight.bold)),
-                          ],
-                        ),
-                      ),
+                                    color: Color(0xFF1B2A4A),
+                                  ),
+                                ),
+                                const SizedBox(height: 12),
+                                ...repository.resumoFinanceiro!.gastosPorCategoria.entries.map((entry) {
+                                  final nomeCat = _obterNomeCategoria(entry.key);
+                                  final valStr = entry.value.toStringAsFixed(2).replaceAll('.', ',');
+                                  return Padding(
+                                    padding: const EdgeInsets.only(bottom: 6.0),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text(
+                                          nomeCat,
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.w600,
+                                            color: Color(0xFF1B2A4A),
+                                          ),
+                                        ),
+                                        Text(
+                                          'R\$ $valStr',
+                                          style: const TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: Color(0xFF1B2A4A),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                          const SizedBox(height: 14),
+                        ],
+                      ],
                       const SizedBox(height: 14),
 
                       _cardBase(
@@ -446,7 +746,7 @@ class _HomeDashboardView extends StatelessWidget {
                             children: [
                               Row(
                                 mainAxisAlignment:
-                                MainAxisAlignment.spaceBetween,
+                                    MainAxisAlignment.spaceBetween,
                                 children: const [
                                   Text('ASSINATURAS ATIVAS',
                                       style: TextStyle(
@@ -459,13 +759,12 @@ class _HomeDashboardView extends StatelessWidget {
                               ),
                               const SizedBox(height: 12),
                               ...assinaturasAtivas.map(
-                                    (item) {
+                                (item) {
                                   final valorStr = item.valor
                                       .toStringAsFixed(2)
                                       .replaceAll('.', ',');
                                   return Padding(
-                                    padding:
-                                    const EdgeInsets.only(bottom: 8.0),
+                                    padding: const EdgeInsets.only(bottom: 8.0),
                                     child: _linhaSimples(
                                       item.nome.toUpperCase(),
                                       'R\$ $valorStr',

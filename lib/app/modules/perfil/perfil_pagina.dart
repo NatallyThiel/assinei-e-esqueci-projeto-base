@@ -2,6 +2,7 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/tema_app.dart';
 import '../../data/repositories/usuario_repository.dart';
+import '../cartoes/gerenciar_cartoes_pagina.dart';
 import '../home/pagina_inicial.dart';
 
 class PerfilPagina extends StatefulWidget {
@@ -273,6 +274,39 @@ class _PerfilPaginaState extends State<PerfilPagina> {
 
                   // Opções de preferência
                   Container(
+                    margin: const EdgeInsets.only(bottom: 16),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withAlpha(25),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.white30),
+                    ),
+                    child: ListTile(
+                      leading: const Icon(Icons.credit_card, color: TemaApp.corBotao),
+                      title: const Text(
+                        'Meus Cartões de Pagamento',
+                        style: TextStyle(
+                          color: TemaApp.corBotao,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                      subtitle: const Text(
+                        'Cadastre e gerencie seus cartões',
+                        style: TextStyle(color: Colors.white70, fontSize: 12),
+                      ),
+                      trailing: const Icon(Icons.chevron_right, color: TemaApp.corBotao),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const GerenciarCartoesPagina(),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+
+                  Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 16,
                       vertical: 8,
@@ -287,7 +321,7 @@ class _PerfilPaginaState extends State<PerfilPagina> {
                       borderRadius: BorderRadius.circular(16),
                       child: SwitchListTile(
                         contentPadding: EdgeInsets.zero,
-                        activeColor: Colors.white,
+                        activeThumbColor: Colors.white,
                         activeTrackColor: TemaApp.corBotao,
                         title: const Text(
                           'Receber alertas de vencimento',

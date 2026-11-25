@@ -78,12 +78,8 @@ class _LoginPaginaState extends State<LoginPagina> {
 
         try {
           await NotificacaoService.instance.inicializar();
-          await NotificacaoService.instance.solicitarPermissao();
-          await NotificacaoService.instance.mostrarNotificacaoDeTeste();
-
-          debugPrint('Notificação imediata executada!');
         } catch (e, stackTrace) {
-          debugPrint('Erro ao exibir notificação: $e');
+          debugPrint('Erro ao inicializar notificações: $e');
           debugPrintStack(stackTrace: stackTrace);
         }
 
@@ -155,6 +151,7 @@ class _LoginPaginaState extends State<LoginPagina> {
         value: 'true',
       );
 
+      if (!mounted) return;
       setState(() => _biometriaAtivada = true);
 
       ScaffoldMessenger.of(context).showSnackBar(
@@ -163,6 +160,7 @@ class _LoginPaginaState extends State<LoginPagina> {
         ),
       );
     } else {
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('Não foi possível confirmar a biometria.'),
@@ -501,7 +499,7 @@ class _LoginPaginaState extends State<LoginPagina> {
           borderRadius: BorderRadius.circular(30),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.15),
+              color: Colors.black.withAlpha(38),
               blurRadius: 8,
               offset: const Offset(0, 4),
             ),

@@ -139,15 +139,39 @@ class AlertasPagina extends StatelessWidget {
                       final hoje = DateTime.now();
                       final dataVenc = item.dataVencimento;
                       final diferencaDias = DateTime(
-                          dataVenc.year, dataVenc.month, dataVenc.day)
+                              dataVenc.year, dataVenc.month, dataVenc.day)
                           .difference(DateTime(hoje.year, hoje.month, hoje.day))
                           .inDays;
 
                       final String textoDias = diferencaDias < 0
                           ? 'Venceu há ${-diferencaDias} dia(s)'
                           : diferencaDias == 0
-                          ? 'Vence HOJE!'
-                          : 'Vence em $diferencaDias dia(s)';
+                              ? 'Vence HOJE!'
+                              : diferencaDias <= 3
+                                  ? 'Vence em $diferencaDias dia(s) (Próximo)'
+                                  : 'Vence em $diferencaDias dia(s)';
+
+                      final String tagTexto = diferencaDias < 0
+                          ? 'ATRASADO'
+                          : diferencaDias == 0
+                              ? 'HOJE'
+                              : diferencaDias <= 3
+                                  ? 'EM BREVE'
+                                  : 'EM DIA';
+
+                      final Color corStatus = diferencaDias < 0
+                          ? Colors.red.shade700
+                          : diferencaDias == 0
+                              ? Colors.orange.shade800
+                              : diferencaDias <= 3
+                                  ? Colors.amber.shade900
+                                  : const Color(0xFF2C436D);
+
+                      final Color corFundoCard = diferencaDias < 0
+                          ? Colors.red.shade50
+                          : diferencaDias == 0
+                              ? Colors.orange.shade50
+                              : Colors.white;
 
                       final dataFormatada =
                           "${dataVenc.day.toString().padLeft(2, '0')}/${dataVenc.month.toString().padLeft(2, '0')}/${dataVenc.year}";
@@ -156,8 +180,14 @@ class AlertasPagina extends StatelessWidget {
                         margin: const EdgeInsets.only(bottom: 12),
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
-                          color: Colors.white,
+                          color: corFundoCard,
                           borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: diferencaDias <= 3
+                                ? corStatus.withAlpha(100)
+                                : Colors.transparent,
+                            width: 1.5,
+                          ),
                           boxShadow: [
                             BoxShadow(
                               color: Colors.black.withAlpha(12),
@@ -171,13 +201,36 @@ class AlertasPagina extends StatelessWidget {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text(
-                                  item.nome.toUpperCase(),
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
-                                    color: Color(0xFF1B2A4A),
-                                  ),
+                                Row(
+                                  children: [
+                                    Text(
+                                      item.nome.toUpperCase(),
+                                      style: const TextStyle(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.bold,
+                                        color: Color(0xFF1B2A4A),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: corStatus.withAlpha(25),
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                            color: corStatus, width: 0.8),
+                                      ),
+                                      child: Text(
+                                        tagTexto,
+                                        style: TextStyle(
+                                          fontSize: 9,
+                                          fontWeight: FontWeight.bold,
+                                          color: corStatus,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 GestureDetector(
                                   onTap: () {
@@ -186,17 +239,17 @@ class AlertasPagina extends StatelessWidget {
                                       MaterialPageRoute(
                                         builder: (context) =>
                                             GerenciarLembretePagina(
-                                              assinatura: item,
-                                            ),
+                                          assinatura: item,
+                                        ),
                                       ),
                                     );
                                   },
                                   child: const Text(
-                                    'VER DETALHES',
+                                    'GERENCIAR',
                                     style: TextStyle(
                                       fontSize: 11,
                                       fontWeight: FontWeight.bold,
-                                      color: Colors.black54,
+                                      color: Color(0xFF2C436D),
                                     ),
                                   ),
                                 ),
@@ -222,33 +275,44 @@ class AlertasPagina extends StatelessWidget {
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
-                                    CrossAxisAlignment.start,
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         textoDias,
                                         style: TextStyle(
-                                          fontSize: 11,
-                                          fontWeight: FontWeight.w600,
-                                          color: diferencaDias <= 3
-                                              ? Colors.redAccent
-                                              : const Color(0xFF2C436D),
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: corStatus,
                                         ),
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        'Vencimento: $dataFormatada',
+                                        'Vencimento: $dataFormatada (${item.horarioAlerta})',
                                         style: const TextStyle(
-                                          fontSize: 10,
+                                          fontSize: 11,
                                           color: Colors.black54,
                                         ),
                                       ),
                                     ],
                                   ),
                                 ),
-                                const Icon(
-                                  Icons.notifications_active,
-                                  color: Color(0xFF1B2A4A),
-                                  size: 20,
+                                Container(
+                                  padding: const EdgeInsets.all(6),
+                                  decoration: BoxDecoration(
+                                    color: item.notificacaoAtivada
+                                        ? const Color(0xFF1B2A4A).withAlpha(20)
+                                        : Colors.grey.withAlpha(30),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Icon(
+                                    item.notificacaoAtivada
+                                        ? Icons.notifications_active
+                                        : Icons.notifications_off,
+                                    color: item.notificacaoAtivada
+                                        ? const Color(0xFF1B2A4A)
+                                        : Colors.grey,
+                                    size: 20,
+                                  ),
                                 ),
                               ],
                             ),
