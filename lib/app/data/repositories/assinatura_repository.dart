@@ -25,6 +25,11 @@ class AssinaturasRepository extends ChangeNotifier {
   List<AssinaturaModel> get assinaturas => List.unmodifiable(_assinaturas);
   bool get carregando => _carregando;
 
+  void adicionarAssinaturaLocal(AssinaturaModel assinatura) {
+    _assinaturas.add(assinatura);
+    notifyListeners();
+  }
+
   ResumoFinanceiroModel? get resumoFinanceiro => _resumoFinanceiro;
   bool get carregandoResumo => _carregandoResumo;
   String? get erroResumo => _erroResumo;

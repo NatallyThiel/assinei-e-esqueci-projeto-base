@@ -103,7 +103,7 @@ class _HomeDashboardView extends StatelessWidget {
     );
 
     if (novaAssinatura != null) {
-      repository.adicionarAssinatura(novaAssinatura);
+      await repository.carregarAssinaturas();
     }
   }
 

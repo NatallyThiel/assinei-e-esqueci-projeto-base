@@ -8,6 +8,41 @@ class StatusCancelamento {
   static const String failed = 'FAILED';
 }
 
+Color _parseCor(dynamic rawColor, {Color corPadrao = const Color(0xFF1B2A4A)}) {
+  if (rawColor == null) return corPadrao;
+  if (rawColor is num) return Color(rawColor.toInt());
+  if (rawColor is String) {
+    final str = rawColor.trim();
+    if (str.isEmpty) return corPadrao;
+    final parsedInt = int.tryParse(str);
+    if (parsedInt != null) return Color(parsedInt);
+    var cleanHex = str.replaceAll('#', '').replaceAll('0x', '').replaceAll('0X', '');
+    if (cleanHex.length == 6) cleanHex = 'FF$cleanHex';
+    final hexInt = int.tryParse(cleanHex, radix: 16);
+    if (hexInt != null) return Color(hexInt);
+  }
+  return corPadrao;
+}
+
+double _parseValor(dynamic val) {
+  if (val == null) return 0.0;
+  if (val is num) return val.toDouble();
+  if (val is String) {
+    final clean = val.trim().replaceAll('R\$', '').replaceAll(' ', '');
+    return double.tryParse(clean.replaceAll(',', '.')) ?? 0.0;
+  }
+  return 0.0;
+}
+
+int _parseInt(dynamic val, int fallback) {
+  if (val == null) return fallback;
+  if (val is num) return val.toInt();
+  if (val is String) {
+    return int.tryParse(val.trim()) ?? fallback;
+  }
+  return fallback;
+}
+
 class AssinaturaModel {
   final String id;
   final String nome;
@@ -145,11 +180,12 @@ class AssinaturaModel {
   factory AssinaturaModel.fromJson(Map<String, dynamic> json) {
     final catRaw = json['categoria']?.toString().trim();
     final catVal = (catRaw != null && catRaw.isNotEmpty) ? catRaw : 'OUTROS';
+    final rawColor = json['corIconeHex'] ?? json['corIcone'] ?? json['cor_icone_hex'];
 
     return AssinaturaModel(
       id: json['id'].toString(),
       nome: json['nome'] ?? '',
-      valor: (json['valor'] as num).toDouble(),
+      valor: _parseValor(json['valor']),
       dataVencimento: json['dataVencimento'] != null
           ? DateTime.parse(json['dataVencimento'])
           : DateTime.now(),
@@ -159,13 +195,11 @@ class AssinaturaModel {
       icone: json['iconeCodePoint'] != null
           ? IconData(
               // ignore: non_const_argument_for_const_parameter
-              (json['iconeCodePoint'] as num).toInt(),
+              _parseInt(json['iconeCodePoint'], 0xe57c),
               fontFamily: 'MaterialIcons',
             )
           : Icons.subscriptions,
-      corIcone: json['corIconeHex'] != null
-          ? Color((json['corIconeHex'] as num).toInt())
-          : const Color(0xFF1B2A4A),
+      corIcone: _parseCor(rawColor),
       plataforma: json['plataforma'] ?? '',
       testeGratis: json['testeGratis'] == true,
       notificacaoAtivada: json['notificacaoAtivada'] != false,

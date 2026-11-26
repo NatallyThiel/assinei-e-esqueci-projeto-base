@@ -39,8 +39,7 @@ void main() {
         );
 
         //Simulando a resposta do cadastro bem-sucedido
-        repository.assinaturas.add(novaAssinatura);
-        repository.notifyListeners();
+        repository.adicionarAssinaturaLocal(novaAssinatura);
 
         await tester.pump();
 
